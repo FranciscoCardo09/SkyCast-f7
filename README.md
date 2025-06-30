@@ -60,17 +60,29 @@ cp .env.example .env
 nano .env
 \`\`\`
 
-### 3️⃣ Levantar el Backend (Django + PostgreSQL + Redis + Celery)
+### 3️⃣ Levantar el Backend (Método Corregido)
 
 \`\`\`bash
-# Dar permisos de ejecución al script
-chmod +x scripts/setup_dev.sh
+# Opción A: Script automático mejorado
+chmod +x scripts/setup_dev_fixed.sh
+./scripts/setup_dev_fixed.sh
 
-# Ejecutar configuración automática
-./scripts/setup_dev.sh
+# Opción B: Paso a paso manual (si el script falla)
+# 1. Crear archivo .env
+cp .env.example .env  # o crear manualmente si no existe
+
+# 2. Levantar servicios
+docker-compose down  # limpiar contenedores anteriores
+docker-compose up -d --build
+
+# 3. Esperar y crear migraciones
+sleep 15
+docker-compose exec web python manage.py makemigrations productos
+docker-compose exec web python manage.py migrate
+
+# 4. Crear superusuario
+docker-compose exec web python manage.py createsuperuser
 \`\`\`
-
-**⏳ Este proceso tomará unos 5-10 minutos la primera vez**
 
 ### 4️⃣ Arreglar Migraciones (si hay errores)
 
@@ -257,6 +269,14 @@ docker-compose logs -f -t web
 
 # Últimas 100 líneas
 docker-compose logs --tail=100 web
+\`\`\`
+
+### 🚨 Si Sigues Teniendo Problemas con Migraciones
+
+\`\`\`bash
+# Script de reparación completa
+chmod +x scripts/fix_migrations_complete.sh
+./scripts/fix_migrations_complete.sh
 \`\`\`
 
 ## 🚀 Producción
