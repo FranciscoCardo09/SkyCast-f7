@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: weather_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - weather_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    networks:
+      - weather_network
+    deploy:
+      replicas: 1
+
+  web:
+    image: weather-api:latest
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn weather_api.wsgi:application --bind 0.0.0.0:8000"
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - DB_HOST=db
+      - DB_NAME=weather_db
+      - DB_USER=postgres
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+    networks:
+      - weather_network
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+  celery:
+    image: weather-api:latest
+    command: celery -A weather_api worker --loglevel=info
+    environment:
+      - DEBUG=False
+      - DB_HOST=db
+      - DB_NAME=weather_db
+      - DB_USER=postgres
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+    networks:
+      - weather_network
+    deploy:
+      replicas: 2
+
+  celery-beat:
+    image: weather-api:latest
+    command: celery -A weather_api beat --loglevel=info
+    environment:
+      - DEBUG=False
+      - DB_HOST=db
+      - DB_NAME=weather_db
+      - DB_USER=postgres
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+    networks:
+      - weather_network
+    deploy:
+      replicas: 1
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
+  media_volume:
+
+networks:
+  weather_network:
+    driver: overlay
