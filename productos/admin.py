@@ -1,127 +1,255 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from django.db.models import Count
+from django.db.models import Count, Q
+from django.urls import reverse
+from django.utils.safestring import mark_safe
 from .models import TipoProducto, Producto, FechaProducto
 import datetime
 
 @admin.register(TipoProducto)
 class TipoProductoAdmin(admin.ModelAdmin):
-    list_display = ['nombre', 'descripcion', 'productos_count', 'url_link']
+    list_display = ['nombre_con_icono', 'descripcion_corta', 'productos_count', 'ultima_actualizacion', 'url_link']
     search_fields = ['nombre', 'descripcion']
-    readonly_fields = ['productos_count']
-    
-    def productos_count(self, obj):
-        return obj.producto_set.count()
-    productos_count.short_description = 'Productos'
-    
-    def url_link(self, obj):
-        return format_html('<a href="{}" target="_blank">Ver URL</a>', obj.url)
-    url_link.short_description = 'URL'
-
-class FechaProductoInline(admin.TabularInline):
-    model = FechaProducto
-    extra = 0
-    readonly_fields = ['fecha_creacion']
-    ordering = ['-fecha', '-hora']
-
-@admin.register(Producto)
-class ProductoAdmin(admin.ModelAdmin):
-    list_display = ['nombre_archivo', 'tipo_producto', 'variable', 'ultima_fecha', 'imagen_preview', 'url_link']
-    list_filter = ['tipo_producto', 'variable', 'fechas__fecha']
-    search_fields = ['nombre_archivo', 'tipo_producto__nombre', 'variable']
-    inlines = [FechaProductoInline]
-    readonly_fields = ['imagen_preview', 'ultima_fecha']
+    readonly_fields = ['productos_count', 'ultima_actualizacion']
     
     fieldsets = (
-        ('Información General', {
-            'fields': ('tipo_producto', 'nombre_archivo', 'variable')
+        ('📊 Información General', {
+            'fields': ('nombre', 'descripcion', 'url')
         }),
-        ('Imagen', {
-            'fields': ('url_imagen', 'foto', 'imagen_preview')
-        }),
-        ('Estadísticas', {
-            'fields': ('ultima_fecha',),
+        ('📈 Estadísticas', {
+            'fields': ('productos_count', 'ultima_actualizacion'),
             'classes': ('collapse',)
         })
     )
     
+    def nombre_con_icono(self, obj):
+        iconos = {
+            'wrf_cba': '🌡️',
+            'MedicionAire': '🌬️',
+            'FWI': '🔥',
+            'rutas_caminera': '🛣️'
+        }
+        icono = iconos.get(obj.nombre, '📊')
+        return format_html('{} <strong>{}</strong>', icono, obj.nombre)
+    nombre_con_icono.short_description = 'Tipo de Producto'
+    
+    def descripcion_corta(self, obj):
+        return obj.descripcion[:100] + '...' if len(obj.descripcion) > 100 else obj.descripcion
+    descripcion_corta.short_description = 'Descripción'
+    
+    def productos_count(self, obj):
+        count = obj.producto_set.count()
+        return format_html(
+            '<span style="background: #e3f2fd; padding: 4px 8px; border-radius: 12px; color: #1976d2;">{} productos</span>',
+            count
+        )
+    productos_count.short_description = 'Total Productos'
+    
+    def ultima_actualizacion(self, obj):
+        ultima = FechaProducto.objects.filter(
+            producto__tipo_producto=obj
+        ).first()
+        if ultima:
+            return format_html(
+                '<span style="color: #4caf50;">📅 {} 🕐 {}</span>',
+                ultima.fecha, ultima.hora
+            )
+        return format_html('<span style="color: #f44336;">Sin datos</span>')
+    ultima_actualizacion.short_description = 'Última Actualización'
+    
+    def url_link(self, obj):
+        return format_html(
+            '<a href="{}" target="_blank" style="background: #4caf50; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none;">🔗 Ver URL</a>',
+            obj.url
+        )
+    url_link.short_description = 'Enlace'
+
+class FechaProductoInline(admin.TabularInline):
+    model = FechaProducto
+    extra = 0
+    readonly_fields = ['fecha_creacion', 'tiempo_transcurrido']
+    ordering = ['-fecha', '-hora']
+    max_num = 10
+    
+    def tiempo_transcurrido(self, obj):
+        if obj.fecha_creacion:
+            delta = datetime.datetime.now(datetime.timezone.utc) - obj.fecha_creacion
+            if delta.days > 0:
+                return f"Hace {delta.days} días"
+            elif delta.seconds > 3600:
+                return f"Hace {delta.seconds // 3600} horas"
+            else:
+                return f"Hace {delta.seconds // 60} minutos"
+        return "-"
+    tiempo_transcurrido.short_description = 'Hace'
+
+@admin.register(Producto)
+class ProductoAdmin(admin.ModelAdmin):
+    list_display = ['nombre_archivo_corto', 'tipo_producto_badge', 'variable_badge', 'ultima_fecha', 'imagen_preview_small', 'acciones']
+    list_filter = ['tipo_producto', 'variable', 'fechas__fecha']
+    search_fields = ['nombre_archivo', 'tipo_producto__nombre', 'variable']
+    inlines = [FechaProductoInline]
+    readonly_fields = ['imagen_preview', 'ultima_fecha', 'total_fechas']
+    list_per_page = 25
+    
+    fieldsets = (
+        ('📄 Información del Producto', {
+            'fields': ('tipo_producto', 'nombre_archivo', 'variable')
+        }),
+        ('🖼️ Imagen', {
+            'fields': ('url_imagen', 'foto', 'imagen_preview')
+        }),
+        ('📊 Estadísticas', {
+            'fields': ('ultima_fecha', 'total_fechas'),
+            'classes': ('collapse',)
+        })
+    )
+    
+    def nombre_archivo_corto(self, obj):
+        nombre = obj.nombre_archivo
+        if len(nombre) > 50:
+            nombre = nombre[:47] + '...'
+        return format_html('📄 <strong>{}</strong>', nombre)
+    nombre_archivo_corto.short_description = 'Archivo'
+    
+    def tipo_producto_badge(self, obj):
+        colores = {
+            'wrf_cba': '#ff9800',
+            'MedicionAire': '#2196f3',
+            'FWI': '#f44336',
+            'rutas_caminera': '#4caf50'
+        }
+        color = colores.get(obj.tipo_producto.nombre, '#9e9e9e')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px;">{}</span>',
+            color, obj.tipo_producto.nombre
+        )
+    tipo_producto_badge.short_description = 'Tipo'
+    
+    def variable_badge(self, obj):
+        if obj.variable:
+            return format_html(
+                '<span style="background: #e1f5fe; color: #0277bd; padding: 2px 6px; border-radius: 8px; font-size: 10px;">{}</span>',
+                obj.variable
+            )
+        return '-'
+    variable_badge.short_description = 'Variable'
+    
+    def imagen_preview_small(self, obj):
+        if obj.url_imagen:
+            return format_html(
+                '<img src="{}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;" onerror="this.style.display=\'none\'" />',
+                obj.url_imagen
+            )
+        return "📷"
+    imagen_preview_small.short_description = 'Vista Previa'
+    
     def imagen_preview(self, obj):
         if obj.url_imagen:
             return format_html(
-                '<img src="{}" style="max-width: 200px; max-height: 200px;" />',
+                '<div style="text-align: center;"><img src="{}" style="max-width: 400px; max-height: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" onerror="this.style.display=\'none\'" /></div>',
                 obj.url_imagen
             )
-        return "Sin imagen"
-    imagen_preview.short_description = 'Vista previa'
-    
-    def url_link(self, obj):
-        return format_html('<a href="{}" target="_blank">Ver imagen</a>', obj.url_imagen)
-    url_link.short_description = 'URL'
+        return "Sin imagen disponible"
+    imagen_preview.short_description = 'Vista Previa Completa'
     
     def ultima_fecha(self, obj):
         ultima = obj.fechas.first()
         if ultima:
-            return f"{ultima.fecha} {ultima.hora}"
-        return "Sin fechas"
-    ultima_fecha.short_description = 'Última actualización'
+            return format_html(
+                '<div style="text-align: center;"><span style="background: #e8f5e8; color: #2e7d32; padding: 4px 8px; border-radius: 8px;">📅 {} 🕐 {}</span></div>',
+                ultima.fecha, ultima.hora
+            )
+        return format_html('<span style="color: #f44336;">Sin fechas</span>')
+    ultima_fecha.short_description = 'Última Actualización'
+    
+    def total_fechas(self, obj):
+        count = obj.fechas.count()
+        return format_html(
+            '<span style="background: #fff3e0; color: #f57c00; padding: 4px 8px; border-radius: 8px;">{} registros</span>',
+            count
+        )
+    total_fechas.short_description = 'Total de Fechas'
+    
+    def acciones(self, obj):
+        return format_html(
+            '<a href="{}" target="_blank" style="background: #1976d2; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; margin-right: 4px;">🔗 Ver</a>'
+            '<a href="{}" style="background: #388e3c; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none;">✏️ Editar</a>',
+            obj.url_imagen,
+            reverse('admin:productos_producto_change', args=[obj.pk])
+        )
+    acciones.short_description = 'Acciones'
 
 @admin.register(FechaProducto)
 class FechaProductoAdmin(admin.ModelAdmin):
-    list_display = ['producto', 'fecha', 'hora', 'tipo_producto', 'fecha_creacion']
+    list_display = ['producto_info', 'fecha_badge', 'hora_badge', 'tipo_producto_info', 'tiempo_transcurrido']
     list_filter = ['fecha', 'producto__tipo_producto', 'producto__variable']
     search_fields = ['producto__nombre_archivo', 'producto__tipo_producto__nombre']
     date_hierarchy = 'fecha'
+    list_per_page = 50
     
-    def tipo_producto(self, obj):
-        return obj.producto.tipo_producto.nombre
-    tipo_producto.short_description = 'Tipo'
+    def producto_info(self, obj):
+        nombre = obj.producto.nombre_archivo
+        if len(nombre) > 40:
+            nombre = nombre[:37] + '...'
+        return format_html(
+            '<div><strong>📄 {}</strong><br><small style="color: #666;">{}</small></div>',
+            nombre,
+            obj.producto.variable or 'Sin variable'
+        )
+    producto_info.short_description = 'Producto'
     
-    # Filtros personalizados para fechas
-    def changelist_view(self, request, extra_context=None):
-        extra_context = extra_context or {}
-        
-        # Estadísticas para el dashboard
+    def fecha_badge(self, obj):
         hoy = datetime.date.today()
-        hace_30_dias = hoy - datetime.timedelta(days=30)
+        if obj.fecha == hoy:
+            color = '#4caf50'
+            texto = 'HOY'
+        elif obj.fecha == hoy - datetime.timedelta(days=1):
+            color = '#ff9800'
+            texto = 'AYER'
+        else:
+            color = '#2196f3'
+            texto = str(obj.fecha)
         
-        stats = {
-            'total_productos': Producto.objects.count(),
-            'productos_hoy': FechaProducto.objects.filter(fecha=hoy).count(),
-            'productos_mes': FechaProducto.objects.filter(fecha__gte=hace_30_dias).count(),
-            'tipos_activos': TipoProducto.objects.annotate(
-                productos_count=Count('producto__fechas')
-            ).filter(productos_count__gt=0).count()
-        }
-        
-        extra_context['stats'] = stats
-        return super().changelist_view(request, extra_context)
+        return format_html(
+            '<span style="background: {}; color: white; padding: 4px 8px; border-radius: 8px; font-size: 11px;">{}</span>',
+            color, texto
+        )
+    fecha_badge.short_description = 'Fecha'
+    
+    def hora_badge(self, obj):
+        return format_html(
+            '<span style="background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 8px; font-family: monospace;">🕐 {}</span>',
+            obj.hora
+        )
+    hora_badge.short_description = 'Hora'
+    
+    def tipo_producto_info(self, obj):
+        return obj.producto.tipo_producto.nombre
+    tipo_producto_info.short_description = 'Tipo'
+    
+    def tiempo_transcurrido(self, obj):
+        if obj.fecha_creacion:
+            delta = datetime.datetime.now(datetime.timezone.utc) - obj.fecha_creacion
+            if delta.days > 0:
+                return format_html(
+                    '<span style="color: #666;">Hace {} días</span>',
+                    delta.days
+                )
+            elif delta.seconds > 3600:
+                return format_html(
+                    '<span style="color: #666;">Hace {} horas</span>',
+                    delta.seconds // 3600
+                )
+            else:
+                return format_html(
+                    '<span style="color: #4caf50;">Hace {} min</span>',
+                    delta.seconds // 60
+                )
+        return "-"
+    tiempo_transcurrido.short_description = 'Creado'
 
 # Personalizar el admin principal
-class WeatherAdminSite(admin.AdminSite):
-    site_header = "OHMC - Productos Meteorológicos"
-    site_title = "OHMC Admin"
-    index_title = "Panel de Control - Productos Meteorológicos"
-    
-    def index(self, request, extra_context=None):
-        extra_context = extra_context or {}
-        
-        # Dashboard con estadísticas
-        hoy = datetime.date.today()
-        hace_7_dias = hoy - datetime.timedelta(days=7)
-        hace_30_dias = hoy - datetime.timedelta(days=30)
-        
-        stats = {
-            'total_productos': Producto.objects.count(),
-            'total_tipos': TipoProducto.objects.count(),
-            'productos_semana': FechaProducto.objects.filter(fecha__gte=hace_7_dias).count(),
-            'productos_mes': FechaProducto.objects.filter(fecha__gte=hace_30_dias).count(),
-            'ultimo_wrf': FechaProducto.objects.filter(
-                producto__tipo_producto__nombre='wrf_cba'
-            ).first(),
-            'ultimo_aire': FechaProducto.objects.filter(
-                producto__tipo_producto__nombre='MedicionAire'
-            ).first(),
-        }
-        
-        extra_context['dashboard_stats'] = stats
-        return super().index(request, extra_context)
+admin.site.site_header = "🌤️ OHMC - Observatorio Hidrometeorológico"
+admin.site.site_title = "OHMC Admin"
+admin.site.index_title = "Panel de Control - Productos Meteorológicos"

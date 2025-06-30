@@ -1,36 +1,83 @@
-from celery import shared_task
-from django.utils import timezone
-from datetime import datetime, timedelta, date
+from django.core.management.base import BaseCommand
+from productos.models import TipoProducto, Producto, FechaProducto
+from datetime import datetime, date, timedelta
 import requests
-import json
-from .models import TipoProducto, Producto, FechaProducto
 import logging
 
 logger = logging.getLogger(__name__)
 
-@shared_task
-def sync_wrf_data():
-    """Sincronizar datos WRF del último mes con estructura correcta"""
-    try:
-        # Crear o obtener tipo de producto
-        tipo_wrf, created = TipoProducto.objects.get_or_create(
-            nombre='wrf_cba',
-            defaults={
-                'descripcion': 'Productos horarios generados por el modelo WRF para Córdoba',
-                'url': 'https://yaku.ohmc.ar/public/wrf/img/CBA/'
-            }
-        )
+class Command(BaseCommand):
+    help = 'Cargar datos iniciales y sincronizar datos del último mes'
+    
+    def handle(self, *args, **options):
+        self.stdout.write(self.style.SUCCESS('🚀 Iniciando carga de datos iniciales...'))
         
-        # Variables disponibles según la estructura real del servidor
+        # 1. Crear tipos de productos
+        self.create_tipos_productos()
+        
+        # 2. Cargar datos del último mes
+        self.load_wrf_data()
+        self.load_medicion_aire_data()
+        self.load_fwi_data()
+        self.load_rutas_data()
+        
+        self.stdout.write(self.style.SUCCESS('✅ Carga de datos completada!'))
+    
+    def create_tipos_productos(self):
+        """Crear los tipos de productos iniciales"""
+        self.stdout.write('📊 Creando tipos de productos...')
+        
+        tipos = [
+            {
+                'nombre': 'wrf_cba',
+                'descripcion': 'Productos horarios generados por el modelo WRF para Córdoba, con actualizaciones diarias y dos corridas por día.',
+                'url': 'https://yaku.ohmc.ar/public/wrf/img/CBA/'
+            },
+            {
+                'nombre': 'MedicionAire',
+                'descripcion': 'Visualizaciones diarias de gases de efecto invernadero (CO₂ y CH₄) medidos por el analizador Picarro en el OHMC.',
+                'url': 'https://yaku.ohmc.ar/public/MedicionAire/'
+            },
+            {
+                'nombre': 'FWI',
+                'descripcion': 'Índice meteorológico de peligro de incendio (Fire Weather Index).',
+                'url': 'https://yaku.ohmc.ar/public/FWI/'
+            },
+            {
+                'nombre': 'rutas_caminera',
+                'descripcion': 'Animación de ráfagas de viento sobre rutas provinciales para apoyo vial.',
+                'url': 'https://yaku.ohmc.ar/public/rutas_caminera/'
+            }
+        ]
+        
+        for tipo_data in tipos:
+            tipo, created = TipoProducto.objects.get_or_create(
+                nombre=tipo_data['nombre'],
+                defaults={
+                    'descripcion': tipo_data['descripcion'],
+                    'url': tipo_data['url']
+                }
+            )
+            if created:
+                self.stdout.write(f'  ✅ Creado: {tipo.nombre}')
+            else:
+                self.stdout.write(f'  ℹ️ Ya existe: {tipo.nombre}')
+    
+    def load_wrf_data(self):
+        """Cargar datos WRF del último mes"""
+        self.stdout.write('🌡️ Cargando datos WRF...')
+        
+        tipo_wrf = TipoProducto.objects.get(nombre='wrf_cba')
+        
+        # Variables disponibles según las imágenes
         variables = [
             'cl', 'ctt', 'dbz_altura', 'hail', 'max_dbz', 'mcape',
             'ppn', 'ppnaccum', 'rh2', 'riesgos_vientos', 'snow',
             't2', 'wdir10', 'wspd10', 'wspd_altura'
         ]
         
-        # Obtener datos del último mes
+        # Cargar datos del último mes
         hoy = date.today()
-        productos_creados = 0
         
         for dias_atras in range(30):  # Último mes
             fecha_actual = hoy - timedelta(days=dias_atras)
@@ -42,12 +89,12 @@ def sync_wrf_data():
                     for hora_pronostico in range(0, 25, 3):  # Cada 3 horas
                         hora_str = f"{hora_pronostico:02d}"
                         
-                        # Estructura de URL basada en la estructura real del servidor
+                        # Estructura de URL basada en las imágenes
                         url = f"https://yaku.ohmc.ar/public/wrf/img/CBA/{fecha_actual.year}_{fecha_actual.month:02d}/{fecha_actual.day:02d}_{hora_corrida}/{variable}/{variable}-{fecha_actual.strftime('%Y-%m-%d')}_{hora_corrida}+{hora_str}.png"
                         
                         nombre_archivo = f"{variable}-{fecha_actual.strftime('%Y-%m-%d')}_{hora_corrida}+{hora_str}.png"
                         
-                        # Crear o actualizar producto
+                        # Crear producto
                         producto, created = Producto.objects.get_or_create(
                             tipo_producto=tipo_wrf,
                             variable=variable,
@@ -58,47 +105,28 @@ def sync_wrf_data():
                         if not created:
                             producto.url_imagen = url
                             producto.save()
-                        else:
-                            productos_creados += 1
                         
                         # Crear fecha de producto
                         try:
-                            # Calcular la hora real del pronóstico
-                            hora_inicio = int(hora_corrida)
-                            hora_pronostico_real = (hora_inicio + hora_pronostico) % 24
-                            hora_obj = datetime.strptime(f"{hora_pronostico_real:02d}:00", "%H:%M").time()
-                            
+                            hora_obj = datetime.strptime(f"{hora_corrida}:{hora_str}", "%H:%M").time()
                             FechaProducto.objects.get_or_create(
                                 fecha=fecha_actual,
                                 hora=hora_obj,
                                 producto=producto
                             )
                         except Exception as e:
-                            logger.warning(f"Error creando fecha para {nombre_archivo}: {str(e)}")
                             continue
         
-        logger.info(f"Sincronización WRF completada: {productos_creados} productos nuevos")
-        return f"WRF sync completed: {productos_creados} new products"
+        count = Producto.objects.filter(tipo_producto=tipo_wrf).count()
+        self.stdout.write(f'  ✅ WRF: {count} productos creados')
+    
+    def load_medicion_aire_data(self):
+        """Cargar datos de medición de aire del último mes"""
+        self.stdout.write('🌬️ Cargando datos de medición de aire...')
         
-    except Exception as e:
-        logger.error(f"Error en sincronización WRF: {str(e)}")
-        raise
-
-@shared_task
-def sync_medicion_aire():
-    """Sincronizar datos de medición de aire del último mes"""
-    try:
-        tipo_aire, created = TipoProducto.objects.get_or_create(
-            nombre='MedicionAire',
-            defaults={
-                'descripcion': 'Visualizaciones diarias de gases de efecto invernadero',
-                'url': 'https://yaku.ohmc.ar/public/MedicionAire/'
-            }
-        )
-        
+        tipo_aire = TipoProducto.objects.get(nombre='MedicionAire')
         archivos = ['CH4_webvisualizer_v4.png', 'CO2_webvisualizer_v4.png']
         hoy = date.today()
-        productos_creados = 0
         
         for dias_atras in range(30):  # Último mes
             fecha_actual = hoy - timedelta(days=dias_atras)
@@ -115,8 +143,6 @@ def sync_medicion_aire():
                 if not created:
                     producto.url_imagen = url
                     producto.save()
-                else:
-                    productos_creados += 1
                 
                 # Crear fecha (aproximadamente a las 10:30)
                 FechaProducto.objects.get_or_create(
@@ -125,29 +151,18 @@ def sync_medicion_aire():
                     producto=producto
                 )
         
-        logger.info(f"Sincronización MedicionAire completada: {productos_creados} productos nuevos")
-        return f"MedicionAire sync completed: {productos_creados} new products"
+        count = Producto.objects.filter(tipo_producto=tipo_aire).count()
+        self.stdout.write(f'  ✅ MedicionAire: {count} productos creados')
+    
+    def load_fwi_data(self):
+        """Cargar datos FWI"""
+        self.stdout.write('🔥 Cargando datos FWI...')
         
-    except Exception as e:
-        logger.error(f"Error en sincronización MedicionAire: {str(e)}")
-        raise
-
-@shared_task
-def sync_fwi_data():
-    """Sincronizar datos FWI"""
-    try:
-        tipo_fwi, created = TipoProducto.objects.get_or_create(
-            nombre='FWI',
-            defaults={
-                'descripcion': 'Índice meteorológico de peligro de incendio',
-                'url': 'https://yaku.ohmc.ar/public/FWI/'
-            }
-        )
-        
+        tipo_fwi = TipoProducto.objects.get(nombre='FWI')
         url = "https://yaku.ohmc.ar/public/FWI/FWI.png"
         
         producto, created = Producto.objects.get_or_create(
-            tipo_fwi=tipo_fwi,
+            tipo_producto=tipo_fwi,
             nombre_archivo='FWI.png',
             defaults={'url_imagen': url}
         )
@@ -163,25 +178,13 @@ def sync_fwi_data():
             producto=producto
         )
         
-        logger.info("Sincronización FWI completada")
-        return "FWI sync completed"
+        self.stdout.write('  ✅ FWI: 1 producto creado')
+    
+    def load_rutas_data(self):
+        """Cargar datos de rutas caminera"""
+        self.stdout.write('🛣️ Cargando datos de rutas...')
         
-    except Exception as e:
-        logger.error(f"Error en sincronización FWI: {str(e)}")
-        raise
-
-@shared_task
-def sync_rutas_caminera():
-    """Sincronizar datos de rutas caminera"""
-    try:
-        tipo_rutas, created = TipoProducto.objects.get_or_create(
-            nombre='rutas_caminera',
-            defaults={
-                'descripcion': 'Animación de ráfagas de viento sobre rutas provinciales',
-                'url': 'https://yaku.ohmc.ar/public/rutas_caminera/'
-            }
-        )
-        
+        tipo_rutas = TipoProducto.objects.get(nombre='rutas_caminera')
         url = "https://yaku.ohmc.ar/public/rutas_caminera/rafagas_rutas.gif"
         
         producto, created = Producto.objects.get_or_create(
@@ -200,28 +203,4 @@ def sync_rutas_caminera():
             producto=producto
         )
         
-        logger.info("Sincronización rutas_caminera completada")
-        return "Rutas caminera sync completed"
-        
-    except Exception as e:
-        logger.error(f"Error en sincronización rutas_caminera: {str(e)}")
-        raise
-
-@shared_task
-def sync_all_data():
-    """Ejecutar todas las sincronizaciones"""
-    results = []
-    
-    try:
-        # Ejecutar sincronizaciones secuencialmente para evitar problemas
-        results.append(sync_wrf_data())
-        results.append(sync_medicion_aire())
-        results.append(sync_fwi_data())
-        results.append(sync_rutas_caminera())
-        
-        logger.info("Todas las sincronizaciones completadas")
-        return results
-        
-    except Exception as e:
-        logger.error(f"Error en sincronización general: {str(e)}")
-        raise
+        self.stdout.write('  ✅ Rutas: 1 producto creado')
