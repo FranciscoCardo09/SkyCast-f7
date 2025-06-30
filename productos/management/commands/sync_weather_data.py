@@ -14,22 +14,27 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         tipo = options.get('type')
         
-        if tipo == 'wrf':
-            from productos.tasks import sync_wrf_data
-            result = sync_wrf_data()
-            self.stdout.write(self.style.SUCCESS(f'WRF sync: {result}'))
-        elif tipo == 'aire':
-            from productos.tasks import sync_medicion_aire
-            result = sync_medicion_aire()
-            self.stdout.write(self.style.SUCCESS(f'MedicionAire sync: {result}'))
-        elif tipo == 'fwi':
-            from productos.tasks import sync_fwi_data
-            result = sync_fwi_data()
-            self.stdout.write(self.style.SUCCESS(f'FWI sync: {result}'))
-        elif tipo == 'rutas':
-            from productos.tasks import sync_rutas_caminera
-            result = sync_rutas_caminera()
-            self.stdout.write(self.style.SUCCESS(f'Rutas sync: {result}'))
-        else:
-            result = sync_all_data()
-            self.stdout.write(self.style.SUCCESS(f'All sync completed: {result}'))
+        # Ejecutar sincronización sin Celery para el comando inicial
+        from productos.tasks import sync_wrf_data, sync_medicion_aire, sync_fwi_data, sync_rutas_caminera
+        results = []
+        try:
+            if tipo == 'wrf':
+                result = sync_wrf_data()
+                self.stdout.write(self.style.SUCCESS(f'WRF sync: {result}'))
+            elif tipo == 'aire':
+                result = sync_medicion_aire()
+                self.stdout.write(self.style.SUCCESS(f'MedicionAire sync: {result}'))
+            elif tipo == 'fwi':
+                result = sync_fwi_data()
+                self.stdout.write(self.style.SUCCESS(f'FWI sync: {result}'))
+            elif tipo == 'rutas':
+                result = sync_rutas_caminera()
+                self.stdout.write(self.style.SUCCESS(f'Rutas sync: {result}'))
+            else:
+                results.append(sync_wrf_data())
+                results.append(sync_medicion_aire())
+                results.append(sync_fwi_data())
+                results.append(sync_rutas_caminera())
+                self.stdout.write(self.style.SUCCESS(f'All sync completed: {results}'))
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'Error: {str(e)}'))

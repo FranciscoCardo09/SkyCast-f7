@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  .weather-card {
+    @apply bg-white rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl hover:scale-105;
+  }
+
+  .weather-card-selected {
+    @apply ring-2 ring-blue-500 bg-blue-50;
+  }
+
+  .tab-button {
+    @apply px-6 py-3 rounded-full font-medium transition-all duration-200;
+  }
+
+  .tab-button-active {
+    @apply bg-white text-blue-600 shadow-md;
+  }
+
+  .tab-button-inactive {
+    @apply text-white hover:bg-white/20;
+  }
+
+  .time-button {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 border;
+  }
+
+  .time-button-active {
+    @apply bg-blue-600 text-white border-blue-600;
+  }
+
+  .time-button-inactive {
+    @apply bg-white text-gray-700 border-gray-300 hover:bg-gray-50;
+  }
+}
