@@ -6,9 +6,9 @@ import "./index.css"
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-gradient-to-br from-blue-400 via-purple-500 to-purple-600">
+      <div className="min-h-screen bg-gray-50">
         <Header />
-        <main className="container mx-auto px-4 py-8">
+        <main className="container mx-auto px-4 py-6">
           <Routes>
             <Route path="/" element={<Dashboard />} />
           </Routes>

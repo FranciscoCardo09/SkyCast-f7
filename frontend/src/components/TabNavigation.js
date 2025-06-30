@@ -1,4 +1,5 @@
 "use client"
+
 import { Thermometer, Flame, Wind, Activity } from "lucide-react"
 
 const TabNavigation = ({ activeTab, onTabChange, estadisticas }) => {
@@ -34,8 +35,8 @@ const TabNavigation = ({ activeTab, onTabChange, estadisticas }) => {
   ]
 
   return (
-    <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-      <div className="flex flex-wrap gap-4 justify-center">
+    <div className="card">
+      <div className="flex flex-wrap gap-3 justify-center">
         {tabs.map((tab) => {
           const Icon = tab.icon
           const isActive = activeTab === tab.id
