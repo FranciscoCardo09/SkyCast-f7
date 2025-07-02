@@ -15,10 +15,11 @@ class ProductoSerializer(serializers.ModelSerializer):
     tipo_producto = TipoProductoSerializer(read_only=True)
     fechas = FechaProductoSerializer(many=True, read_only=True)
     ultima_fecha = serializers.SerializerMethodField()
+    imagen_url = serializers.SerializerMethodField()
     
     class Meta:
         model = Producto
-        fields = ['id', 'url_imagen', 'tipo_producto', 'variable', 
+        fields = ['id', 'url_imagen', 'imagen_url', 'tipo_producto', 'variable', 
                  'nombre_archivo', 'fechas', 'ultima_fecha']
     
     def get_ultima_fecha(self, obj):
@@ -30,14 +31,24 @@ class ProductoSerializer(serializers.ModelSerializer):
                 'fecha_creacion': ultima.fecha_creacion
             }
         return None
+    
+    def get_imagen_url(self, obj):
+        """Devolver URL de imagen guardada o URL externa como fallback"""
+        if obj.foto:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.foto.url)
+            return obj.foto.url
+        return obj.url_imagen  # Fallback a URL externa
 
 class ProductoListSerializer(serializers.ModelSerializer):
     tipo_producto_nombre = serializers.CharField(source='tipo_producto.nombre', read_only=True)
     ultima_fecha = serializers.SerializerMethodField()
+    imagen_url = serializers.SerializerMethodField()
     
     class Meta:
         model = Producto
-        fields = ['id', 'url_imagen', 'tipo_producto_nombre', 'variable', 
+        fields = ['id', 'url_imagen', 'imagen_url', 'tipo_producto_nombre', 'variable', 
                  'nombre_archivo', 'ultima_fecha']
     
     def get_ultima_fecha(self, obj):
@@ -45,3 +56,12 @@ class ProductoListSerializer(serializers.ModelSerializer):
         if ultima:
             return f"{ultima.fecha} {ultima.hora}"
         return None
+    
+    def get_imagen_url(self, obj):
+        """Devolver URL de imagen guardada o URL externa como fallback"""
+        if obj.foto:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.foto.url)
+            return obj.foto.url
+        return obj.url_imagen  # Fallback a URL externa

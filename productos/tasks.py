@@ -1,16 +1,50 @@
 from celery import shared_task
 from django.utils import timezone
+from django.core.files.base import ContentFile
 from datetime import datetime, timedelta, date
 import requests
 import json
 from .models import TipoProducto, Producto, FechaProducto
 import logging
+from urllib.parse import urlparse
+import os
 
 logger = logging.getLogger(__name__)
 
+def download_and_save_image(producto, url):
+    """Descargar imagen desde URL y guardarla en el modelo"""
+    try:
+        logger.info(f"Descargando imagen: {url}")
+        response = requests.get(url, timeout=30, stream=True)
+        
+        if response.status_code == 200:
+            # Obtener nombre del archivo desde la URL
+            parsed_url = urlparse(url)
+            filename = os.path.basename(parsed_url.path)
+            
+            # Si no hay extensión, usar .png por defecto
+            if not filename or '.' not in filename:
+                filename = f"{producto.nombre_archivo}.png"
+            
+            # Guardar imagen en el campo foto
+            producto.foto.save(
+                filename,
+                ContentFile(response.content),
+                save=True
+            )
+            logger.info(f"✅ Imagen guardada: {filename}")
+            return True
+        else:
+            logger.warning(f"⚠️ Error HTTP {response.status_code} para {url}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Error descargando {url}: {str(e)}")
+        return False
+
 @shared_task
 def sync_wrf_data():
-    """Sincronizar datos WRF del último mes con estructura correcta"""
+    """Sincronizar datos WRF y descargar imágenes"""
     try:
         # Crear o obtener tipo de producto
         tipo_wrf, created = TipoProducto.objects.get_or_create(
@@ -21,28 +55,25 @@ def sync_wrf_data():
             }
         )
         
-        # Variables disponibles según la estructura real del servidor
-        variables = [
-            'cl', 'ctt', 'dbz_altura', 'hail', 'max_dbz', 'mcape',
-            'ppn', 'ppnaccum', 'rh2', 'riesgos_vientos', 'snow',
-            't2', 'wdir10', 'wspd10', 'wspd_altura'
-        ]
+        # Variables principales para empezar
+        variables = ['t2', 'ppn', 'wspd10', 'rh2', 'ppnaccum']
         
-        # Obtener datos del último mes
+        # Obtener datos de la última semana
         hoy = date.today()
         productos_creados = 0
+        imagenes_descargadas = 0
         
-        for dias_atras in range(30):  # Último mes
+        for dias_atras in range(7):  # Última semana
             fecha_actual = hoy - timedelta(days=dias_atras)
             
             # Solo procesar días con corridas (6 y 18 UTC)
             for hora_corrida in ['06', '18']:
                 for variable in variables:
-                    # Generar URLs para las próximas 24 horas de pronóstico
-                    for hora_pronostico in range(0, 25, 3):  # Cada 3 horas
+                    # Generar URLs para horas principales
+                    for hora_pronostico in [0, 6, 12, 18]:
                         hora_str = f"{hora_pronostico:02d}"
                         
-                        # Estructura de URL basada en la estructura real del servidor
+                        # Estructura correcta de URL
                         url = f"https://yaku.ohmc.ar/public/wrf/img/CBA/{fecha_actual.year}_{fecha_actual.month:02d}/{fecha_actual.day:02d}_{hora_corrida}/{variable}/{variable}-{fecha_actual.strftime('%Y-%m-%d')}_{hora_corrida}+{hora_str}.png"
                         
                         nombre_archivo = f"{variable}-{fecha_actual.strftime('%Y-%m-%d')}_{hora_corrida}+{hora_str}.png"
@@ -61,15 +92,26 @@ def sync_wrf_data():
                         else:
                             productos_creados += 1
                         
+                        # Descargar imagen si no existe
+                        if not producto.foto:
+                            if download_and_save_image(producto, url):
+                                imagenes_descargadas += 1
+                        
                         # Crear fecha de producto
                         try:
-                            # Calcular la hora real del pronóstico
-                            hora_inicio = int(hora_corrida)
-                            hora_pronostico_real = (hora_inicio + hora_pronostico) % 24
-                            hora_obj = datetime.strptime(f"{hora_pronostico_real:02d}:00", "%H:%M").time()
+                            hora_total = int(hora_corrida) + hora_pronostico
+                            
+                            if hora_total >= 24:
+                                fecha_pronostico = fecha_actual + timedelta(days=1)
+                                hora_final = hora_total - 24
+                            else:
+                                fecha_pronostico = fecha_actual
+                                hora_final = hora_total
+                            
+                            hora_obj = datetime.strptime(f"{hora_final:02d}:00", "%H:%M").time()
                             
                             FechaProducto.objects.get_or_create(
-                                fecha=fecha_actual,
+                                fecha=fecha_pronostico,
                                 hora=hora_obj,
                                 producto=producto
                             )
@@ -77,8 +119,8 @@ def sync_wrf_data():
                             logger.warning(f"Error creando fecha para {nombre_archivo}: {str(e)}")
                             continue
         
-        logger.info(f"Sincronización WRF completada: {productos_creados} productos nuevos")
-        return f"WRF sync completed: {productos_creados} new products"
+        logger.info(f"Sincronización WRF completada: {productos_creados} productos nuevos, {imagenes_descargadas} imágenes descargadas")
+        return f"WRF sync completed: {productos_creados} new products, {imagenes_descargadas} images downloaded"
         
     except Exception as e:
         logger.error(f"Error en sincronización WRF: {str(e)}")
@@ -86,7 +128,7 @@ def sync_wrf_data():
 
 @shared_task
 def sync_medicion_aire():
-    """Sincronizar datos de medición de aire del último mes"""
+    """Sincronizar datos de medición de aire y descargar imágenes"""
     try:
         tipo_aire, created = TipoProducto.objects.get_or_create(
             nombre='MedicionAire',
@@ -99,16 +141,18 @@ def sync_medicion_aire():
         archivos = ['CH4_webvisualizer_v4.png', 'CO2_webvisualizer_v4.png']
         hoy = date.today()
         productos_creados = 0
+        imagenes_descargadas = 0
         
-        for dias_atras in range(30):  # Último mes
+        for dias_atras in range(7):  # Última semana
             fecha_actual = hoy - timedelta(days=dias_atras)
             
             for archivo in archivos:
                 url = f"https://yaku.ohmc.ar/public/MedicionAire/{fecha_actual.month:02d}/{fecha_actual.day:02d}/{archivo}"
+                nombre_archivo_con_fecha = f"{fecha_actual.strftime('%Y-%m-%d')}_{archivo}"
                 
                 producto, created = Producto.objects.get_or_create(
                     tipo_producto=tipo_aire,
-                    nombre_archivo=archivo,
+                    nombre_archivo=nombre_archivo_con_fecha,
                     defaults={'url_imagen': url}
                 )
                 
@@ -118,15 +162,20 @@ def sync_medicion_aire():
                 else:
                     productos_creados += 1
                 
-                # Crear fecha (aproximadamente a las 10:30)
+                # Descargar imagen si no existe
+                if not producto.foto:
+                    if download_and_save_image(producto, url):
+                        imagenes_descargadas += 1
+                
+                # Crear fecha
                 FechaProducto.objects.get_or_create(
                     fecha=fecha_actual,
                     hora=datetime.strptime("10:30", "%H:%M").time(),
                     producto=producto
                 )
         
-        logger.info(f"Sincronización MedicionAire completada: {productos_creados} productos nuevos")
-        return f"MedicionAire sync completed: {productos_creados} new products"
+        logger.info(f"Sincronización MedicionAire completada: {productos_creados} productos nuevos, {imagenes_descargadas} imágenes descargadas")
+        return f"MedicionAire sync completed: {productos_creados} new products, {imagenes_descargadas} images downloaded"
         
     except Exception as e:
         logger.error(f"Error en sincronización MedicionAire: {str(e)}")
@@ -134,7 +183,7 @@ def sync_medicion_aire():
 
 @shared_task
 def sync_fwi_data():
-    """Sincronizar datos FWI"""
+    """Sincronizar datos FWI y descargar imagen"""
     try:
         tipo_fwi, created = TipoProducto.objects.get_or_create(
             nombre='FWI',
@@ -147,7 +196,7 @@ def sync_fwi_data():
         url = "https://yaku.ohmc.ar/public/FWI/FWI.png"
         
         producto, created = Producto.objects.get_or_create(
-            tipo_fwi=tipo_fwi,
+            tipo_producto=tipo_fwi,
             nombre_archivo='FWI.png',
             defaults={'url_imagen': url}
         )
@@ -156,6 +205,12 @@ def sync_fwi_data():
             producto.url_imagen = url
             producto.save()
         
+        # Descargar imagen si no existe
+        imagenes_descargadas = 0
+        if not producto.foto:
+            if download_and_save_image(producto, url):
+                imagenes_descargadas = 1
+        
         # Crear fecha de hoy
         FechaProducto.objects.get_or_create(
             fecha=date.today(),
@@ -163,8 +218,8 @@ def sync_fwi_data():
             producto=producto
         )
         
-        logger.info("Sincronización FWI completada")
-        return "FWI sync completed"
+        logger.info(f"Sincronización FWI completada: {imagenes_descargadas} imágenes descargadas")
+        return f"FWI sync completed: {imagenes_descargadas} images downloaded"
         
     except Exception as e:
         logger.error(f"Error en sincronización FWI: {str(e)}")
@@ -172,7 +227,7 @@ def sync_fwi_data():
 
 @shared_task
 def sync_rutas_caminera():
-    """Sincronizar datos de rutas caminera"""
+    """Sincronizar datos de rutas caminera y descargar imagen"""
     try:
         tipo_rutas, created = TipoProducto.objects.get_or_create(
             nombre='rutas_caminera',
@@ -194,17 +249,43 @@ def sync_rutas_caminera():
             producto.url_imagen = url
             producto.save()
         
+        # Descargar imagen si no existe
+        imagenes_descargadas = 0
+        if not producto.foto:
+            if download_and_save_image(producto, url):
+                imagenes_descargadas = 1
+        
         FechaProducto.objects.get_or_create(
             fecha=date.today(),
             hora=datetime.strptime("11:00", "%H:%M").time(),
             producto=producto
         )
         
-        logger.info("Sincronización rutas_caminera completada")
-        return "Rutas caminera sync completed"
+        logger.info(f"Sincronización rutas_caminera completada: {imagenes_descargadas} imágenes descargadas")
+        return f"Rutas caminera sync completed: {imagenes_descargadas} images downloaded"
         
     except Exception as e:
         logger.error(f"Error en sincronización rutas_caminera: {str(e)}")
+        raise
+
+@shared_task
+def download_missing_images():
+    """Descargar imágenes faltantes para productos existentes"""
+    try:
+        productos_sin_imagen = Producto.objects.filter(foto__isnull=True).exclude(foto='')
+        total_descargadas = 0
+        
+        logger.info(f"Encontrados {productos_sin_imagen.count()} productos sin imagen")
+        
+        for producto in productos_sin_imagen:
+            if download_and_save_image(producto, producto.url_imagen):
+                total_descargadas += 1
+        
+        logger.info(f"Descarga de imágenes faltantes completada: {total_descargadas} imágenes descargadas")
+        return f"Downloaded {total_descargadas} missing images"
+        
+    except Exception as e:
+        logger.error(f"Error descargando imágenes faltantes: {str(e)}")
         raise
 
 @shared_task
@@ -213,11 +294,11 @@ def sync_all_data():
     results = []
     
     try:
-        # Ejecutar sincronizaciones secuencialmente para evitar problemas
         results.append(sync_wrf_data())
         results.append(sync_medicion_aire())
         results.append(sync_fwi_data())
         results.append(sync_rutas_caminera())
+        results.append(download_missing_images())
         
         logger.info("Todas las sincronizaciones completadas")
         return results

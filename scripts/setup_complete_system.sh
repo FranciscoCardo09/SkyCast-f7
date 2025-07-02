@@ -7,8 +7,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}🚀 OHMC Weather API - Setup Completo del Sistema${NC}"
-echo -e "${BLUE}=================================================${NC}"
+echo -e "${BLUE}🚀 OHMC Weather API - Setup Completo con Descarga de Imágenes${NC}"
+echo -e "${BLUE}=========================================================${NC}"
 echo ""
 
 # Función para mostrar errores y salir
@@ -138,16 +138,16 @@ EOF
 
 success "Superusuario configurado"
 
-# 9. Cargar datos iniciales
-progress "Cargando datos meteorológicos del último mes..."
-info "Esto puede tomar varios minutos..."
+# 9. Cargar datos iniciales CON DESCARGA DE IMÁGENES
+progress "Cargando datos meteorológicos y descargando imágenes..."
+info "Esto puede tomar varios minutos dependiendo de la conexión..."
 
-docker-compose exec -T web python manage.py load_initial_data
+docker-compose exec -T web python manage.py load_initial_data --days=7 --download-images
 if [ $? -ne 0 ]; then
     error_exit "Falló la carga de datos iniciales"
 fi
 
-success "Datos meteorológicos cargados"
+success "Datos meteorológicos e imágenes cargados"
 
 # 10. Verificar que todo funciona
 progress "Verificando servicios..."
@@ -158,13 +158,6 @@ if curl -f http://localhost:8000/api/productos/ > /dev/null 2>&1; then
     success "API funcionando correctamente"
 else
     info "API no responde inmediatamente (normal en primera ejecución)"
-fi
-
-# Verificar admin
-if curl -f http://localhost:8000/admin/ > /dev/null 2>&1; then
-    success "Admin funcionando correctamente"
-else
-    info "Admin no responde inmediatamente (normal en primera ejecución)"
 fi
 
 # 11. Mostrar estadísticas
@@ -180,12 +173,18 @@ from django.contrib.auth import get_user_model
 print(f"📊 Tipos de Productos: {TipoProducto.objects.count()}")
 print(f"📄 Productos: {Producto.objects.count()}")
 print(f"📅 Fechas de Productos: {FechaProducto.objects.count()}")
-print(f"👥 Usuarios: {get_user_model().objects.count()}")
+
+# Contar imágenes guardadas
+total_con_imagen = Producto.objects.exclude(foto='').exclude(foto__isnull=True).count()
+total_productos = Producto.objects.count()
+print(f"📸 Imágenes guardadas: {total_con_imagen}/{total_productos}")
+
 print()
 print("📋 Detalle por tipo:")
 for tipo in TipoProducto.objects.all():
     count = tipo.producto_set.count()
-    print(f"  - {tipo.nombre}: {count} productos")
+    con_imagen = tipo.producto_set.exclude(foto='').exclude(foto__isnull=True).count()
+    print(f"  - {tipo.nombre}: {count} productos ({con_imagen} con imagen)")
 EOF
 
 # 12. Mostrar estado de servicios
@@ -195,26 +194,23 @@ echo -e "${BLUE}==============================${NC}"
 docker-compose ps
 
 echo ""
-echo -e "${GREEN}🎉 ¡SISTEMA COMPLETAMENTE CONFIGURADO!${NC}"
-echo -e "${GREEN}====================================${NC}"
+echo -e "${GREEN}🎉 ¡SISTEMA COMPLETAMENTE CONFIGURADO CON IMÁGENES!${NC}"
+echo -e "${GREEN}=================================================${NC}"
 echo ""
 echo -e "${BLUE}🌐 URLs DISPONIBLES:${NC}"
 echo -e "  📊 API: ${YELLOW}http://localhost:8000/api/${NC}"
 echo -e "  🔧 Admin: ${YELLOW}http://localhost:8000/admin${NC}"
 echo -e "  👤 Usuario: ${YELLOW}admin${NC} / Contraseña: ${YELLOW}admin123${NC}"
 echo ""
-echo -e "${BLUE}📊 ENDPOINTS PRINCIPALES:${NC}"
-echo -e "  - GET ${YELLOW}/api/productos/${NC} - Lista todos los productos"
-echo -e "  - GET ${YELLOW}/api/productos/?tipo=wrf_cba${NC} - Productos WRF"
-echo -e "  - GET ${YELLOW}/api/productos/?fecha=2025-06-30${NC} - Por fecha"
-echo -e "  - GET ${YELLOW}/api/ultimos/${NC} - Últimos productos"
-echo -e "  - GET ${YELLOW}/api/estadisticas/${NC} - Estadísticas generales"
+echo -e "${BLUE}📸 CARACTERÍSTICAS:${NC}"
+echo -e "  ✅ Imágenes descargadas y guardadas en la base de datos"
+echo -e "  ✅ Datos de la última semana disponibles"
+echo -e "  ✅ Frontend optimizado para imágenes locales"
 echo ""
 echo -e "${BLUE}🔧 COMANDOS ÚTILES:${NC}"
 echo -e "  - Ver logs: ${YELLOW}docker-compose logs -f web${NC}"
-echo -e "  - Parar servicios: ${YELLOW}docker-compose down${NC}"
-echo -e "  - Reiniciar: ${YELLOW}docker-compose restart${NC}"
+echo -e "  - Descargar imágenes faltantes: ${YELLOW}docker-compose exec web python manage.py load_initial_data --download-images${NC}"
 echo -e "  - Sincronizar datos: ${YELLOW}docker-compose exec web python manage.py sync_weather_data${NC}"
 echo ""
-echo -e "${GREEN}✨ El sistema está listo para usar!${NC}"
+echo -e "${GREEN}✨ ¡El sistema está listo con imágenes guardadas!${NC}"
 echo -e "${BLUE}🌤️ Disfruta del OHMC Weather API!${NC}"
