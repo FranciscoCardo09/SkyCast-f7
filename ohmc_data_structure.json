@@ -1,0 +1,92 @@
+{
+  "base_url": "https://yaku.ohmc.ar/public/",
+  "proyectos": {
+    "wrf_cba": {
+      "descripcion": "Productos horarios generados por el modelo WRF para Córdoba, con actualizaciones diarias y dos corridas por día.",
+      "url_base": "https://yaku.ohmc.ar/public/wrf/img/CBA/",
+      "estructura_directorios": "CBA/YYYY_MM/DD_HH/{variable}/",
+      "estructura_archivos": "{variable}-YYYY-MM-DD_HH+HH.png",
+      "tipo": "imágenes dinámicas con estructura de directorios",
+      "frecuencia_actualizacion": "diaria - dos corridas por día",
+      "ultima_actualizacion": "2025-06-26T12:00:00Z",
+      "explicacion_estructura": {
+        "YYYY_MM": "año y mes del modelo (por ejemplo, 2025_06)",
+        "DD_HH": "día y hora UTC de inicio de la corrida (por ejemplo, 26_06)",
+        "{variable}": "nombre de la variable meteorológica (ej. t2, ppn)",
+        "HH+HH": "hora UTC de pronóstico desde el inicio (ej. +09)"
+      },
+      "variables_disponibles": {
+        "t2": {
+          "nombre": "Temperatura a 2 metros",
+          "descripcion": "Temperatura del aire a 2 metros sobre el suelo (°C)."
+        },
+        "dbz_altura": {
+          "nombre": "Reflectividad en altura",
+          "descripcion": "Simulación de reflectividad radar (dBZ) a diferentes niveles del modelo."
+        },
+        "ppn": {
+          "nombre": "Precipitación horaria",
+          "descripcion": "Tasa instantánea de precipitación (mm/h)."
+        },
+        "rh2": {
+          "nombre": "Humedad relativa a 2 metros",
+          "descripcion": "Porcentaje de humedad relativa a 2 metros sobre la superficie."
+        },
+        "riesgos_vientos": {
+          "nombre": "Riesgo por viento",
+          "descripcion": "Áreas con riesgo de viento fuerte o ráfagas intensas."
+        },
+        "wdir10": {
+          "nombre": "Dirección del viento a 10 metros",
+          "descripcion": "Dirección desde donde sopla el viento (°) a 10 m de altura."
+        },
+        "wspd10": {
+          "nombre": "Velocidad del viento a 10 metros",
+          "descripcion": "Velocidad del viento (m/s) a 10 m de altura."
+        },
+        "ppnaccum": {
+          "nombre": "Precipitación acumulada",
+          "descripcion": "Acumulado total de precipitación desde el inicio de la corrida (mm)."
+        }
+      },
+      "ejemplo_directorio": "https://yaku.ohmc.ar/public/wrf/img/CBA/2025_06/26_06/t2/",
+      "ejemplo_archivo": "https://yaku.ohmc.ar/public/wrf/img/CBA/2025_06/26_06/t2/t2-2025-06-26_06+09.png"
+    },
+    "FWI": {
+      "descripcion": "Índice meteorológico de peligro de incendio (Fire Weather Index).",
+      "url_base": "https://yaku.ohmc.ar/public/FWI/",
+      "archivos": ["FWI.png"],
+      "tipo": "imagen estática",
+      "frecuencia_actualizacion": "diaria",
+      "ultima_actualizacion": "2025-04-23T10:54:00Z",
+      "ejemplo": "https://yaku.ohmc.ar/public/FWI/FWI.png"
+    },
+    "rutas_caminera": {
+      "descripcion": "Animación de ráfagas de viento sobre rutas provinciales para apoyo vial.",
+      "url_base": "https://yaku.ohmc.ar/public/rutas_caminera/",
+      "archivos": ["rafagas_rutas.gif"],
+      "tipo": "animación GIF",
+      "frecuencia_actualizacion": "diaria",
+      "ultima_actualizacion": "2025-04-23T10:51:00Z",
+      "ejemplo": "https://yaku.ohmc.ar/public/rutas_caminera/rafagas_rutas.gif"
+    },
+    "MedicionAire": {
+      "descripcion": "Visualizaciones diarias de gases de efecto invernadero (CO₂ y CH₄) medidos por el analizador Picarro en el OHMC.",
+      "url_base": "https://yaku.ohmc.ar/public/MedicionAire/",
+      "estructura_directorios": "MM/DD/",
+      "archivos": ["CH4_webvisualizer_v4.png", "CO2_webvisualizer_v4.png"],
+      "tipo": "imágenes estáticas que se actualizan diariamente",
+      "frecuencia_actualizacion": "diaria",
+      "ultima_actualizacion": "2025-06-26T00:00:00Z",
+      "explicacion_estructura": {
+        "MM": "mes del año (formato de dos dígitos, ej. 06)",
+        "DD": "día del mes (formato de dos dígitos, ej. 26)"
+      },
+      "ejemplo_directorio": "https://yaku.ohmc.ar/public/MedicionAire/06/26/",
+      "ejemplos": [
+        "https://yaku.ohmc.ar/public/MedicionAire/06/26/CH4_webvisualizer_v4.png",
+        "https://yaku.ohmc.ar/public/MedicionAire/06/26/CO2_webvisualizer_v4.png"
+      ]
+    }
+  }
+}

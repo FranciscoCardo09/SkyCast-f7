@@ -2,7 +2,7 @@ from rest_framework import generics, filters
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Q
+from django.db.models import Q, Count
 from datetime import datetime, date
 from .models import TipoProducto, Producto, FechaProducto
 from .serializers import (
@@ -116,6 +116,73 @@ def productos_por_fecha_hora(request):
     return Response(serializer.data)
 
 @api_view(['GET'])
+def fechas_disponibles(request):
+    """Endpoint para obtener todas las fechas disponibles por tipo de producto"""
+    tipo = request.query_params.get('tipo', 'wrf_cba')
+    
+    fechas = FechaProducto.objects.filter(
+        producto__tipo_producto__nombre=tipo
+    ).values('fecha').annotate(
+        total_productos=Count('id'),
+        variables_count=Count('producto__variable', distinct=True),
+        horas_count=Count('hora', distinct=True)
+    ).order_by('-fecha')
+    
+    return Response(list(fechas))
+
+@api_view(['GET'])
+def horas_disponibles(request):
+    """Endpoint para obtener horas disponibles para una fecha específica"""
+    fecha = request.query_params.get('fecha')
+    tipo = request.query_params.get('tipo', 'wrf_cba')
+    variable = request.query_params.get('variable')
+    
+    if not fecha:
+        return Response({'error': 'Se requiere parámetro fecha'}, status=400)
+    
+    try:
+        fecha_obj = datetime.strptime(fecha, '%Y-%m-%d').date()
+    except ValueError:
+        return Response({'error': 'Formato de fecha inválido'}, status=400)
+    
+    queryset = FechaProducto.objects.filter(
+        fecha=fecha_obj,
+        producto__tipo_producto__nombre=tipo
+    )
+    
+    if variable:
+        queryset = queryset.filter(producto__variable=variable)
+    
+    horas = queryset.values('hora').annotate(
+        total_productos=Count('id'),
+        variables_count=Count('producto__variable', distinct=True)
+    ).order_by('hora')
+    
+    return Response(list(horas))
+
+@api_view(['GET'])
+def variables_disponibles(request):
+    """Endpoint para obtener variables disponibles para WRF"""
+    fecha = request.query_params.get('fecha')
+    
+    queryset = Producto.objects.filter(tipo_producto__nombre='wrf_cba')
+    
+    if fecha:
+        try:
+            fecha_obj = datetime.strptime(fecha, '%Y-%m-%d').date()
+            queryset = queryset.filter(fechas__fecha=fecha_obj)
+        except ValueError:
+            pass
+    
+    variables = queryset.values('variable').annotate(
+        total_productos=Count('id'),
+        fechas_count=Count('fechas__fecha', distinct=True),
+        horas_count=Count('fechas__hora', distinct=True)
+    ).order_by('variable')
+    
+    return Response(list(variables))
+
+@api_view(['GET'])
 def estadisticas(request):
     """Endpoint con estadísticas generales"""
     from django.db.models import Count
@@ -139,6 +206,18 @@ def estadisticas(request):
             Producto.objects.filter(
                 tipo_producto__nombre='wrf_cba'
             ).values_list('variable', flat=True).distinct()
+        ),
+        'fechas_disponibles': list(
+            FechaProducto.objects.values_list('fecha', flat=True).distinct().order_by('-fecha')[:30]
+        ),
+        'datos_por_fecha': list(
+            FechaProducto.objects.filter(
+                producto__tipo_producto__nombre='wrf_cba'
+            ).values('fecha').annotate(
+                total=Count('id'),
+                variables=Count('producto__variable', distinct=True),
+                horas=Count('hora', distinct=True)
+            ).order_by('-fecha')[:10]
         )
     }
     
