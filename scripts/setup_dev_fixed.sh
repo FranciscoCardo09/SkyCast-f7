@@ -92,12 +92,12 @@ else
     echo "⚠️ API no responde, pero los servicios están corriendo"
 fi
 
-# Cargar datos desde JSON
-echo "📄 Cargando datos desde JSON..."
-if docker-compose exec -T web python manage.py load_from_json --days=30 2>/dev/null; then
-    echo "✅ Datos cargados desde JSON correctamente"
+# Sincronizar datos iniciales (opcional, puede fallar si no hay conexión)
+echo "🌤️ Intentando sincronizar datos meteorológicos..."
+if docker-compose exec -T web python manage.py sync_weather_data 2>/dev/null; then
+    echo "✅ Datos sincronizados correctamente"
 else
-    echo "⚠️ No se pudieron cargar los datos desde JSON (normal en primera ejecución)"
+    echo "⚠️ No se pudieron sincronizar los datos (normal en primera ejecución)"
 fi
 
 echo ""
