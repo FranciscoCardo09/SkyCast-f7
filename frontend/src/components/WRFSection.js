@@ -231,6 +231,8 @@ const WRFSection = ({ loading: initialLoading }) => {
     const uniqueHours = [...new Set(hours)]
     setAvailableHours(uniqueHours)
 
+    console.log("Horas disponibles:", uniqueHours)
+
     // Si la hora seleccionada no está disponible, seleccionar la primera disponible
     if (uniqueHours.length > 0 && !uniqueHours.includes(selectedTime)) {
       setSelectedTime(uniqueHours[0])
@@ -281,7 +283,7 @@ const WRFSection = ({ loading: initialLoading }) => {
         </div>
       </div>
 
-      {/* Date Selector */}
+      {/* Date Selector - SIN RESTRICCIONES */}
       <div className="card">
         <div className="flex items-center space-x-3 mb-4">
           <Calendar className="h-5 w-5 text-blue-600" />
@@ -296,11 +298,14 @@ const WRFSection = ({ loading: initialLoading }) => {
               onChange={setSelectedDate}
               dateFormat="dd/MM/yyyy"
               locale={es}
-              maxDate={new Date()}
-              minDate={subDays(new Date(), 7)}
+              maxDate={new Date()} // Solo hasta hoy
+              minDate={new Date(2020, 0, 1)} // Desde 2020 - sin restricciones estrictas
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              showYearDropdown
+              showMonthDropdown
+              dropdownMode="select"
             />
-            <p className="text-sm text-gray-500 mt-1">Última semana disponible</p>
+            <p className="text-sm text-gray-500 mt-1">Selecciona cualquier fecha disponible</p>
           </div>
 
           <div>
@@ -351,7 +356,7 @@ const WRFSection = ({ loading: initialLoading }) => {
           <div className="flex items-center space-x-2">
             <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{selectedTime} ARG</span>
             {currentImage && (
-              <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">📸 Disponible</span>
+              <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">🔍 Click para zoom</span>
             )}
           </div>
         </div>
@@ -361,11 +366,21 @@ const WRFSection = ({ loading: initialLoading }) => {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
         ) : currentImage ? (
-          <ZoomableImage
-            src={currentImage}
-            alt={`${selectedVariable} - ${format(selectedDate, "dd/MM/yyyy")} ${selectedTime}`}
-            className="w-full"
-          />
+          <div>
+            <ZoomableImage
+              src={currentImage}
+              alt={`${selectedVariable} - ${format(selectedDate, "dd/MM/yyyy")} ${selectedTime}`}
+              className="w-full"
+            />
+            <div className="mt-3 text-center">
+              <p className="text-sm text-gray-600">
+                📅 {format(selectedDate, "dd/MM/yyyy")} • 🕐 {selectedTime} ARG • 📊 {selectedVariable.toUpperCase()}
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                💡 Haz click en la imagen para hacer zoom y explorar en detalle
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="flex items-center justify-center h-96 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
             <div className="text-center">
