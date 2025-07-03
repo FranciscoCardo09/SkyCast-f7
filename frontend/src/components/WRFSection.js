@@ -1,48 +1,588 @@
-import { Box, Typography, Grid, Paper } from "@mui/material"
+"use client"
 
-const WRFSection = () => {
-  // Dummy data for WRF information
-  const wrfData = [
+import { useState, useEffect } from "react"
+import {
+  Calendar,
+  Thermometer,
+  CloudRain,
+  Wind,
+  Droplets,
+  AlertTriangle,
+  Activity,
+  Zap,
+  Eye,
+  Snowflake,
+  ChevronDown,
+} from "lucide-react"
+import DatePicker from "react-datepicker"
+import { format, subDays, addDays } from "date-fns"
+import { es } from "date-fns/locale"
+import { fetchProductos } from "../services/api"
+import ZoomableImage from "./ZoomableImage"
+import HourSelector from "./HourSelector"
+import "react-datepicker/dist/react-datepicker.css"
+
+const WRFSection = ({ loading: initialLoading }) => {
+  const [selectedDate, setSelectedDate] = useState(subDays(new Date(), 1))
+  const [selectedTime, setSelectedTime] = useState("12:00")
+  const [selectedVariable, setSelectedVariable] = useState("t2")
+  const [productos, setProductos] = useState([])
+  const [allProductos, setAllProductos] = useState([]) // Productos de múltiples días
+  const [availableHours, setAvailableHours] = useState([])
+  const [loading, setLoading] = useState(initialLoading)
+  const [currentImage, setCurrentImage] = useState(null)
+
+  // TODAS las variables WRF disponibles según el JSON
+  const variables = [
     {
-      title: "Temperatura",
-      value: "25°C",
-      unit: "",
+      id: "t2",
+      name: "Temperatura a 2m",
+      icon: Thermometer,
+      color: "text-orange-600",
+      bgColor: "bg-orange-50",
+      borderColor: "border-orange-200",
+      description: "Temperatura del aire a 2 metros sobre el suelo (°C)",
+      category: "Temperatura",
     },
     {
-      title: "Humedad",
-      value: "60",
-      unit: "%",
+      id: "cl",
+      name: "Cobertura Nubosa",
+      icon: Eye,
+      color: "text-gray-600",
+      bgColor: "bg-gray-50",
+      borderColor: "border-gray-200",
+      description: "Fracción de cobertura nubosa total",
+      category: "Nubes",
     },
     {
-      title: "Viento",
-      value: "15",
-      unit: " km/h",
+      id: "ctt",
+      name: "Temperatura Tope Nubes",
+      icon: CloudRain,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
+      description: "Temperatura en el tope de las nubes (°C)",
+      category: "Nubes",
     },
     {
-      title: "Precipitación",
-      value: "0",
-      unit: " mm",
+      id: "dbz_altura",
+      name: "Reflectividad en Altura",
+      icon: Activity,
+      color: "text-purple-600",
+      bgColor: "bg-purple-50",
+      borderColor: "border-purple-200",
+      description: "Simulación de reflectividad radar (dBZ) a diferentes niveles",
+      category: "Radar",
+    },
+    {
+      id: "hail",
+      name: "Granizo",
+      icon: Snowflake,
+      color: "text-cyan-600",
+      bgColor: "bg-cyan-50",
+      borderColor: "border-cyan-200",
+      description: "Probabilidad o intensidad de granizo",
+      category: "Precipitación",
+    },
+    {
+      id: "max_dbz",
+      name: "Reflectividad Máxima",
+      icon: Zap,
+      color: "text-yellow-600",
+      bgColor: "bg-yellow-50",
+      borderColor: "border-yellow-200",
+      description: "Máxima reflectividad radar en la columna (dBZ)",
+      category: "Radar",
+    },
+    {
+      id: "mcape",
+      name: "CAPE Máximo",
+      icon: Activity,
+      color: "text-red-600",
+      bgColor: "bg-red-50",
+      borderColor: "border-red-200",
+      description: "Energía potencial convectiva disponible máxima (J/kg)",
+      category: "Convección",
+    },
+    {
+      id: "ppn",
+      name: "Precipitación Horaria",
+      icon: CloudRain,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
+      description: "Tasa instantánea de precipitación (mm/h)",
+      category: "Precipitación",
+    },
+    {
+      id: "ppnaccum",
+      name: "Precipitación Acumulada",
+      icon: CloudRain,
+      color: "text-blue-700",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-300",
+      description: "Acumulado total de precipitación desde el inicio (mm)",
+      category: "Precipitación",
+    },
+    {
+      id: "rh2",
+      name: "Humedad Relativa",
+      icon: Droplets,
+      color: "text-purple-600",
+      bgColor: "bg-purple-50",
+      borderColor: "border-purple-200",
+      description: "Porcentaje de humedad relativa a 2 metros",
+      category: "Humedad",
+    },
+    {
+      id: "riesgos_vientos",
+      name: "Riesgo por Viento",
+      icon: Wind,
+      color: "text-red-600",
+      bgColor: "bg-red-50",
+      borderColor: "border-red-200",
+      description: "Áreas con riesgo de viento fuerte o ráfagas intensas",
+      category: "Viento",
+    },
+    {
+      id: "snow",
+      name: "Nieve",
+      icon: Snowflake,
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
+      description: "Acumulación de nieve o probabilidad de nevadas",
+      category: "Precipitación",
+    },
+    {
+      id: "wdir10",
+      name: "Dirección del Viento",
+      icon: Wind,
+      color: "text-green-600",
+      bgColor: "bg-green-50",
+      borderColor: "border-green-200",
+      description: "Dirección desde donde sopla el viento (°) a 10m",
+      category: "Viento",
+    },
+    {
+      id: "wspd10",
+      name: "Velocidad del Viento",
+      icon: Wind,
+      color: "text-green-600",
+      bgColor: "bg-green-50",
+      borderColor: "border-green-200",
+      description: "Velocidad del viento (m/s) a 10 m de altura",
+      category: "Viento",
+    },
+    {
+      id: "wspd_altura",
+      name: "Velocidad Viento en Altura",
+      icon: Wind,
+      color: "text-green-700",
+      bgColor: "bg-green-50",
+      borderColor: "border-green-300",
+      description: "Velocidad del viento a diferentes niveles de altura",
+      category: "Viento",
     },
   ]
 
+  useEffect(() => {
+    loadWRFData()
+  }, [selectedDate, selectedVariable])
+
+  useEffect(() => {
+    // Cuando cambian los productos, actualizar horas disponibles y buscar imagen
+    updateAvailableHours()
+    findImageForSelectedTime()
+  }, [allProductos, selectedTime, selectedDate])
+
+  const loadWRFData = async () => {
+    try {
+      setLoading(true)
+      const dateStr = format(selectedDate, "yyyy-MM-dd")
+
+      // También cargar el día anterior y siguiente para capturar todas las horas
+      const prevDateStr = format(subDays(selectedDate, 1), "yyyy-MM-dd")
+      const nextDateStr = format(addDays(selectedDate, 1), "yyyy-MM-dd")
+
+      console.log("Buscando productos WRF para:", {
+        fechas: [prevDateStr, dateStr, nextDateStr],
+        variable: selectedVariable,
+      })
+
+      // Cargar productos de 3 días para asegurar que tenemos todas las horas
+      const [currentResponse, prevResponse, nextResponse] = await Promise.all([
+        fetchProductos({
+          tipo: "wrf_cba",
+          fecha: dateStr,
+          variable: selectedVariable,
+        }),
+        fetchProductos({
+          tipo: "wrf_cba",
+          fecha: prevDateStr,
+          variable: selectedVariable,
+        }).catch(() => ({ results: [] })),
+        fetchProductos({
+          tipo: "wrf_cba",
+          fecha: nextDateStr,
+          variable: selectedVariable,
+        }).catch(() => ({ results: [] })),
+      ])
+
+      const currentProductos = currentResponse.results || currentResponse
+      const prevProductos = prevResponse.results || prevResponse
+      const nextProductos = nextResponse.results || nextResponse
+
+      // Combinar todos los productos
+      const todosLosProductos = [...prevProductos, ...currentProductos, ...nextProductos]
+
+      console.log("Productos encontrados:", {
+        anterior: prevProductos.length,
+        actual: currentProductos.length,
+        siguiente: nextProductos.length,
+        total: todosLosProductos.length,
+      })
+
+      setProductos(currentProductos) // Para mostrar estadísticas
+      setAllProductos(todosLosProductos) // Para calcular horas disponibles
+    } catch (error) {
+      console.error("Error loading WRF data:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Función para convertir offset de archivo a hora ARG y fecha
+  const offsetToArgDateTime = (offset, runHour, baseDate) => {
+    // runHour es la hora de inicio de la corrida (06 o 18 UTC)
+    // offset es el número después del + en el nombre del archivo
+    // baseDate es la fecha base de la corrida
+
+    const utcHour = Number.parseInt(runHour) + Number.parseInt(offset)
+    let argHour = utcHour - 3 // Argentina es UTC-3
+    let dayOffset = 0
+
+    // Manejar el cambio de día
+    if (argHour < 0) {
+      argHour += 24
+      dayOffset = -1 // Día anterior
+    } else if (argHour >= 24) {
+      argHour -= 24
+      dayOffset = 1 // Día siguiente
+    }
+
+    // Calcular la fecha real del pronóstico
+    const forecastDate = new Date(baseDate)
+    forecastDate.setDate(forecastDate.getDate() + dayOffset)
+
+    return {
+      time: `${argHour.toString().padStart(2, "0")}:00`,
+      date: forecastDate,
+      dateStr: format(forecastDate, "yyyy-MM-dd"),
+    }
+  }
+
+  const updateAvailableHours = () => {
+    if (allProductos.length === 0) {
+      setAvailableHours([])
+      return
+    }
+
+    const selectedDateStr = format(selectedDate, "yyyy-MM-dd")
+
+    // Extraer información de los nombres de archivos
+    const hoursInfo = allProductos
+      .map((p) => {
+        // Buscar patrón de corrida y offset: YYYY-MM-DD_HH+HH
+        const match = p.nombre_archivo.match(/(\d{4}-\d{2}-\d{2})_(\d{2})\+(\d{2})/)
+        if (match) {
+          const [, date, runHour, offset] = match
+          const baseDate = new Date(date + "T00:00:00")
+          const dateTimeInfo = offsetToArgDateTime(offset, runHour, baseDate)
+
+          console.log(`Archivo: ${p.nombre_archivo} -> Hora ARG: ${dateTimeInfo.time}, Fecha: ${dateTimeInfo.dateStr}`)
+
+          // Solo incluir si la fecha del pronóstico coincide con la fecha seleccionada
+          if (selectedDateStr === dateTimeInfo.dateStr) {
+            return {
+              argTime: dateTimeInfo.time,
+              offset: Number.parseInt(offset),
+              runHour: Number.parseInt(runHour),
+              filename: p.nombre_archivo,
+              forecastDate: dateTimeInfo.date,
+              producto: p,
+            }
+          }
+        }
+        return null
+      })
+      .filter(Boolean)
+
+    // Obtener horas únicas y ordenarlas
+    const uniqueHours = [...new Set(hoursInfo.map((h) => h.argTime))].sort((a, b) => {
+      const hourA = Number.parseInt(a.split(":")[0])
+      const hourB = Number.parseInt(b.split(":")[0])
+      return hourA - hourB
+    })
+
+    setAvailableHours(uniqueHours)
+
+    console.log("Horas disponibles (ARG) para fecha seleccionada:", uniqueHours)
+    console.log("Información de archivos filtrada:", hoursInfo.length)
+
+    // Si la hora seleccionada no está disponible, seleccionar la primera disponible
+    if (uniqueHours.length > 0 && !uniqueHours.includes(selectedTime)) {
+      setSelectedTime(uniqueHours[0])
+    }
+  }
+
+  const findImageForSelectedTime = () => {
+    if (allProductos.length === 0) {
+      setCurrentImage(null)
+      return
+    }
+
+    const selectedDateStr = format(selectedDate, "yyyy-MM-dd")
+    console.log("Buscando imagen para hora ARG:", selectedTime, "fecha:", selectedDateStr)
+
+    // Buscar el producto que corresponde a la hora ARG seleccionada en la fecha correcta
+    const matchingProduct = allProductos.find((p) => {
+      // Extraer información del nombre del archivo
+      const match = p.nombre_archivo.match(/(\d{4}-\d{2}-\d{2})_(\d{2})\+(\d{2})/)
+      if (match) {
+        const [, date, runHour, offset] = match
+        const baseDate = new Date(date + "T00:00:00")
+        const dateTimeInfo = offsetToArgDateTime(offset, runHour, baseDate)
+
+        return dateTimeInfo.time === selectedTime && selectedDateStr === dateTimeInfo.dateStr
+      }
+      return false
+    })
+
+    console.log("Producto encontrado:", matchingProduct?.nombre_archivo)
+
+    if (matchingProduct) {
+      // Usar imagen_url (imagen guardada) o url_imagen (externa) como fallback
+      const imageUrl = matchingProduct.imagen_url || matchingProduct.url_imagen
+      setCurrentImage(imageUrl)
+      console.log("URL de imagen:", imageUrl)
+    } else {
+      setCurrentImage(null)
+    }
+  }
+
+  // Obtener la variable seleccionada
+  const selectedVariableData = variables.find((v) => v.id === selectedVariable)
+
   return (
-    <Box sx={{ mt: 3, bgcolor: "background.paper", p: 2, borderRadius: 2 }}>
-      <Typography variant="h6" gutterBottom>
-        Pronóstico del Tiempo
-      </Typography>
-      <Grid container spacing={2}>
-        {wrfData.map((item, index) => (
-          <Grid item xs={6} sm={3} key={index}>
-            <Paper elevation={3} sx={{ p: 2, textAlign: "center" }}>
-              <Typography variant="subtitle1">{item.title}</Typography>
-              <Typography variant="h5">
-                {item.value} {item.unit}
-              </Typography>
-            </Paper>
-          </Grid>
-        ))}
-      </Grid>
-    </Box>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="card">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="bg-blue-600 p-2 rounded-lg">
+            <Thermometer className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Modelo WRF - Córdoba</h2>
+            <p className="text-gray-600">
+              Productos horarios del modelo meteorológico WRF para Córdoba. {variables.length} variables disponibles.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Date and Variable Selector */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Date Selector */}
+        <div className="card">
+          <div className="flex items-center space-x-3 mb-4">
+            <Calendar className="h-5 w-5 text-blue-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Fecha</h3>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar fecha</label>
+              <DatePicker
+                selected={selectedDate}
+                onChange={setSelectedDate}
+                dateFormat="dd/MM/yyyy"
+                locale={es}
+                maxDate={new Date()} // Solo hasta hoy
+                minDate={new Date(2020, 0, 1)} // Desde 2020 - sin restricciones estrictas
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                showYearDropdown
+                showMonthDropdown
+                dropdownMode="select"
+              />
+              <p className="text-sm text-gray-500 mt-1">Selecciona cualquier fecha disponible</p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
+              <span className="font-semibold text-blue-800">{format(selectedDate, "dd/MM/yyyy", { locale: es })}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Variable Selector - Dropdown */}
+        <div className="card">
+          <div className="flex items-center space-x-3 mb-4">
+            {selectedVariableData && (
+              <div
+                className={`w-10 h-10 rounded-lg flex items-center justify-center ${selectedVariableData.bgColor} border ${selectedVariableData.borderColor}`}
+              >
+                <selectedVariableData.icon className={`h-5 w-5 ${selectedVariableData.color}`} />
+              </div>
+            )}
+            <h3 className="text-lg font-semibold text-gray-900">Variable Meteorológica</h3>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar variable</label>
+              <div className="relative">
+                <select
+                  value={selectedVariable}
+                  onChange={(e) => setSelectedVariable(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white pr-10"
+                >
+                  {/* Agrupar por categoría */}
+                  <optgroup label="🌡️ Temperatura">
+                    {variables
+                      .filter((v) => v.category === "Temperatura")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="🌧️ Precipitación">
+                    {variables
+                      .filter((v) => v.category === "Precipitación")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="💨 Viento">
+                    {variables
+                      .filter((v) => v.category === "Viento")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="☁️ Nubes">
+                    {variables
+                      .filter((v) => v.category === "Nubes")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="📡 Radar">
+                    {variables
+                      .filter((v) => v.category === "Radar")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="💧 Humedad">
+                    {variables
+                      .filter((v) => v.category === "Humedad")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="⚡ Convección">
+                    {variables
+                      .filter((v) => v.category === "Convección")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {selectedVariableData && (
+              <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg">
+                <p className="text-sm text-gray-700">{selectedVariableData.description}</p>
+                <div className="flex items-center space-x-2 mt-2">
+                  <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">
+                    {selectedVariableData.category}
+                  </span>
+                  <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                    {selectedVariable.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Hour Selector with Navigation */}
+      <HourSelector selectedHour={selectedTime} onHourChange={setSelectedTime} availableHours={availableHours} />
+
+      {/* Image Display */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">
+            {selectedVariableData?.name || "Variable Meteorológica"}
+          </h3>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{selectedTime} ARG</span>
+            {currentImage && (
+              <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">🔍 Click para zoom</span>
+            )}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center h-96 bg-gray-50 rounded-lg">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        ) : currentImage ? (
+          <div>
+            <ZoomableImage
+              src={currentImage}
+              alt={`${selectedVariable} - ${format(selectedDate, "dd/MM/yyyy")} ${selectedTime}`}
+              className="w-full"
+            />
+            <div className="mt-3 text-center">
+              <p className="text-sm text-gray-600">
+                📅 {format(selectedDate, "dd/MM/yyyy")} • 🕐 {selectedTime} ARG • 📊 {selectedVariable.toUpperCase()}
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                💡 Haz click en la imagen para hacer zoom y explorar en detalle
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-96 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+            <div className="text-center">
+              <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-500 mb-2">No hay datos disponibles para la fecha y hora seleccionadas</p>
+              <p className="text-sm text-gray-400">
+                Fecha: {format(selectedDate, "dd/MM/yyyy")} | Variable: {selectedVariable} | Hora: {selectedTime}
+              </p>
+              <p className="text-xs text-gray-400 mt-2">Horas disponibles: {availableHours.join(", ") || "Ninguna"}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

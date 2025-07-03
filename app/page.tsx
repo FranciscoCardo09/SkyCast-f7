@@ -1,7 +1,7 @@
 "use client"
 
-import HourSelector from "../frontend/src/components/HourSelector"
+import  from "../frontend/src/index"
 
 export default function SyntheticV0PageForDeployment() {
-  return <HourSelector />
+  return < />
 }
