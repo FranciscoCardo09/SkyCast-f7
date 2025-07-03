@@ -50,7 +50,7 @@ class Command(BaseCommand):
         download_images = options['download_images'] and not options['no_download']
         
         # Cargar JSON
-        json_path = os.path.join(os.getcwd(), json_file)
+        json_path = os.path.join('/app', json_file)  # Ruta dentro del contenedor
         if not os.path.exists(json_path):
             self.stdout.write(self.style.ERROR(f'❌ Archivo JSON no encontrado: {json_path}'))
             return
@@ -101,7 +101,7 @@ class Command(BaseCommand):
             self.stdout.write(f'    📥 Descargando: {os.path.basename(url)}')
             
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
             
             response = requests.get(url, headers=headers, timeout=30, stream=True)
@@ -121,13 +121,13 @@ class Command(BaseCommand):
                     ContentFile(response.content),
                     save=True
                 )
-                self.stdout.write(self.style.SUCCESS(f'      ✅ Guardada: {filename}'))
+                self.stdout.write(self.style.SUCCESS(f'      ✅ Guardada: {filename} ({len(response.content)} bytes)'))
                 return True
             elif response.status_code == 404:
                 self.stdout.write(self.style.WARNING(f'      ⚠️ No encontrada (404): {os.path.basename(url)}'))
                 return False
             else:
-                self.stdout.write(self.style.WARNING(f'      ⚠️ Error HTTP {response.status_code}'))
+                self.stdout.write(self.style.WARNING(f'      ⚠️ Error HTTP {response.status_code}: {os.path.basename(url)}'))
                 return False
                 
         except requests.exceptions.Timeout:
