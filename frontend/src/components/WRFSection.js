@@ -12,6 +12,7 @@ import {
   Zap,
   Eye,
   Snowflake,
+  ChevronDown,
 } from "lucide-react"
 import DatePicker from "react-datepicker"
 import { format, subDays, addDays } from "date-fns"
@@ -42,6 +43,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-orange-50",
       borderColor: "border-orange-200",
       description: "Temperatura del aire a 2 metros sobre el suelo (°C)",
+      category: "Temperatura",
     },
     {
       id: "cl",
@@ -51,6 +53,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-gray-50",
       borderColor: "border-gray-200",
       description: "Fracción de cobertura nubosa total",
+      category: "Nubes",
     },
     {
       id: "ctt",
@@ -60,6 +63,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-blue-50",
       borderColor: "border-blue-200",
       description: "Temperatura en el tope de las nubes (°C)",
+      category: "Nubes",
     },
     {
       id: "dbz_altura",
@@ -69,6 +73,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-purple-50",
       borderColor: "border-purple-200",
       description: "Simulación de reflectividad radar (dBZ) a diferentes niveles",
+      category: "Radar",
     },
     {
       id: "hail",
@@ -78,6 +83,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-cyan-50",
       borderColor: "border-cyan-200",
       description: "Probabilidad o intensidad de granizo",
+      category: "Precipitación",
     },
     {
       id: "max_dbz",
@@ -87,6 +93,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-yellow-50",
       borderColor: "border-yellow-200",
       description: "Máxima reflectividad radar en la columna (dBZ)",
+      category: "Radar",
     },
     {
       id: "mcape",
@@ -96,6 +103,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-red-50",
       borderColor: "border-red-200",
       description: "Energía potencial convectiva disponible máxima (J/kg)",
+      category: "Convección",
     },
     {
       id: "ppn",
@@ -105,6 +113,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-blue-50",
       borderColor: "border-blue-200",
       description: "Tasa instantánea de precipitación (mm/h)",
+      category: "Precipitación",
     },
     {
       id: "ppnaccum",
@@ -114,6 +123,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-blue-50",
       borderColor: "border-blue-300",
       description: "Acumulado total de precipitación desde el inicio (mm)",
+      category: "Precipitación",
     },
     {
       id: "rh2",
@@ -123,6 +133,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-purple-50",
       borderColor: "border-purple-200",
       description: "Porcentaje de humedad relativa a 2 metros",
+      category: "Humedad",
     },
     {
       id: "riesgos_vientos",
@@ -132,6 +143,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-red-50",
       borderColor: "border-red-200",
       description: "Áreas con riesgo de viento fuerte o ráfagas intensas",
+      category: "Viento",
     },
     {
       id: "snow",
@@ -141,6 +153,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-blue-50",
       borderColor: "border-blue-200",
       description: "Acumulación de nieve o probabilidad de nevadas",
+      category: "Precipitación",
     },
     {
       id: "wdir10",
@@ -150,6 +163,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-green-50",
       borderColor: "border-green-200",
       description: "Dirección desde donde sopla el viento (°) a 10m",
+      category: "Viento",
     },
     {
       id: "wspd10",
@@ -159,6 +173,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-green-50",
       borderColor: "border-green-200",
       description: "Velocidad del viento (m/s) a 10 m de altura",
+      category: "Viento",
     },
     {
       id: "wspd_altura",
@@ -168,6 +183,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       bgColor: "bg-green-50",
       borderColor: "border-green-300",
       description: "Velocidad del viento a diferentes niveles de altura",
+      category: "Viento",
     },
   ]
 
@@ -361,6 +377,9 @@ const WRFSection = ({ loading: initialLoading }) => {
     }
   }
 
+  // Obtener la variable seleccionada
+  const selectedVariableData = variables.find((v) => v.id === selectedVariable)
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -379,65 +398,145 @@ const WRFSection = ({ loading: initialLoading }) => {
         </div>
       </div>
 
-      {/* Date Selector - SIN RESTRICCIONES */}
-      <div className="card">
-        <div className="flex items-center space-x-3 mb-4">
-          <Calendar className="h-5 w-5 text-blue-600" />
-          <h3 className="text-lg font-semibold text-gray-900">Seleccionar fecha</h3>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Fecha</label>
-            <DatePicker
-              selected={selectedDate}
-              onChange={setSelectedDate}
-              dateFormat="dd/MM/yyyy"
-              locale={es}
-              maxDate={new Date()} // Solo hasta hoy
-              minDate={new Date(2020, 0, 1)} // Desde 2020 - sin restricciones estrictas
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              showYearDropdown
-              showMonthDropdown
-              dropdownMode="select"
-            />
-            <p className="text-sm text-gray-500 mt-1">Selecciona cualquier fecha disponible</p>
+      {/* Date and Variable Selector */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Date Selector */}
+        <div className="card">
+          <div className="flex items-center space-x-3 mb-4">
+            <Calendar className="h-5 w-5 text-blue-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Fecha</h3>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Fecha seleccionada</label>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar fecha</label>
+              <DatePicker
+                selected={selectedDate}
+                onChange={setSelectedDate}
+                dateFormat="dd/MM/yyyy"
+                locale={es}
+                maxDate={new Date()} // Solo hasta hoy
+                minDate={new Date(2020, 0, 1)} // Desde 2020 - sin restricciones estrictas
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                showYearDropdown
+                showMonthDropdown
+                dropdownMode="select"
+              />
+              <p className="text-sm text-gray-500 mt-1">Selecciona cualquier fecha disponible</p>
+            </div>
+
             <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
               <span className="font-semibold text-blue-800">{format(selectedDate, "dd/MM/yyyy", { locale: es })}</span>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Variable Selection */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {variables.map((variable) => {
-          const Icon = variable.icon
-          const isSelected = selectedVariable === variable.id
-
-          return (
-            <button
-              key={variable.id}
-              onClick={() => setSelectedVariable(variable.id)}
-              className={`
-                variable-card text-left
-                ${isSelected ? `variable-card-selected ${variable.bgColor} ${variable.borderColor}` : ""}
-              `}
-            >
+        {/* Variable Selector - Dropdown */}
+        <div className="card">
+          <div className="flex items-center space-x-3 mb-4">
+            {selectedVariableData && (
               <div
-                className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${variable.bgColor} border ${variable.borderColor}`}
+                className={`w-10 h-10 rounded-lg flex items-center justify-center ${selectedVariableData.bgColor} border ${selectedVariableData.borderColor}`}
               >
-                <Icon className={`h-5 w-5 ${variable.color}`} />
+                <selectedVariableData.icon className={`h-5 w-5 ${selectedVariableData.color}`} />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-1 text-sm">{variable.name}</h3>
-              <p className="text-xs text-gray-600">{variable.description}</p>
-            </button>
-          )
-        })}
+            )}
+            <h3 className="text-lg font-semibold text-gray-900">Variable Meteorológica</h3>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar variable</label>
+              <div className="relative">
+                <select
+                  value={selectedVariable}
+                  onChange={(e) => setSelectedVariable(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white pr-10"
+                >
+                  {/* Agrupar por categoría */}
+                  <optgroup label="🌡️ Temperatura">
+                    {variables
+                      .filter((v) => v.category === "Temperatura")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="🌧️ Precipitación">
+                    {variables
+                      .filter((v) => v.category === "Precipitación")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="💨 Viento">
+                    {variables
+                      .filter((v) => v.category === "Viento")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="☁️ Nubes">
+                    {variables
+                      .filter((v) => v.category === "Nubes")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="📡 Radar">
+                    {variables
+                      .filter((v) => v.category === "Radar")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="💧 Humedad">
+                    {variables
+                      .filter((v) => v.category === "Humedad")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="⚡ Convección">
+                    {variables
+                      .filter((v) => v.category === "Convección")
+                      .map((variable) => (
+                        <option key={variable.id} value={variable.id}>
+                          {variable.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {selectedVariableData && (
+              <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg">
+                <p className="text-sm text-gray-700">{selectedVariableData.description}</p>
+                <div className="flex items-center space-x-2 mt-2">
+                  <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">
+                    {selectedVariableData.category}
+                  </span>
+                  <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                    {selectedVariable.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Hour Selector with Navigation */}
@@ -447,7 +546,7 @@ const WRFSection = ({ loading: initialLoading }) => {
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">
-            {variables.find((v) => v.id === selectedVariable)?.name}
+            {selectedVariableData?.name || "Variable Meteorológica"}
           </h3>
           <div className="flex items-center space-x-2">
             <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{selectedTime} ARG</span>

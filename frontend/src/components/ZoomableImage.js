@@ -39,8 +39,16 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
     setPosition({ x: 0, y: 0 })
   }
 
+  const handleWheel = (e) => {
+    if (isModalOpen) {
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? 0.9 : 1.1
+      setScale((prev) => Math.min(Math.max(prev * delta, 0.5), 5))
+    }
+  }
+
   const handleMouseDown = (e) => {
-    if (scale > 1) {
+    if (scale > 1 && isModalOpen) {
       setIsDragging(true)
       setDragStart({
         x: e.clientX - position.x,
@@ -51,7 +59,7 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
   }
 
   const handleMouseMove = (e) => {
-    if (isDragging && scale > 1) {
+    if (isDragging && scale > 1 && isModalOpen) {
       setPosition({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
@@ -61,12 +69,6 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
 
   const handleMouseUp = () => {
     setIsDragging(false)
-  }
-
-  const handleWheel = (e) => {
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
-    setScale((prev) => Math.min(Math.max(prev * delta, 0.5), 5))
   }
 
   const handleTouchStart = (e) => {
@@ -92,6 +94,18 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
 
   const handleTouchEnd = () => {
     setIsDragging(false)
+  }
+
+  const handleImageLoad = () => {
+    setImageLoaded(true)
+  }
+
+  const handleImageError = (e) => {
+    console.error("Error cargando imagen:", src)
+    e.target.style.display = "none"
+    if (e.target.nextSibling) {
+      e.target.nextSibling.style.display = "flex"
+    }
   }
 
   // Manejar eventos del mouse
@@ -130,15 +144,10 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
         <img
           src={src || "/placeholder.svg?height=400&width=600"}
           alt={alt}
-          className="w-full h-auto rounded-lg transition-transform duration-200 hover:scale-[1.02]"
+          className="w-full h-auto rounded-lg transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
           onClick={openModal}
-          onError={(e) => {
-            console.error("Error cargando imagen:", src)
-            e.target.style.display = "none"
-            if (e.target.nextSibling) {
-              e.target.nextSibling.style.display = "flex"
-            }
-          }}
+          onError={handleImageError}
+          onLoad={handleImageLoad}
         />
         <div className="hidden items-center justify-center h-64 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
           <div className="text-center">
@@ -213,7 +222,7 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
-                onLoad={() => setImageLoaded(true)}
+                onLoad={handleImageLoad}
                 draggable={false}
               />
             </div>
