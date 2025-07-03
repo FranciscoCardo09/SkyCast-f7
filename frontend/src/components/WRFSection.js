@@ -209,29 +209,80 @@ const WRFSection = ({ loading: initialLoading }) => {
     }
   }
 
+  // Función para convertir offset de archivo a hora ARG
+  const offsetToArgTime = (offset, runHour) => {
+    // runHour es la hora de inicio de la corrida (06 o 18 UTC)
+    // offset es el número después del + en el nombre del archivo
+    // Necesitamos convertir a hora ARG (UTC-3)
+
+    const utcHour = Number.parseInt(runHour) + Number.parseInt(offset)
+    let argHour = utcHour - 3 // Argentina es UTC-3
+
+    // Manejar el cambio de día
+    if (argHour < 0) {
+      argHour += 24
+    } else if (argHour >= 24) {
+      argHour -= 24
+    }
+
+    return `${argHour.toString().padStart(2, "0")}:00`
+  }
+
+  // Función para convertir hora ARG a offset de archivo
+  const argTimeToOffset = (argTime, runHour) => {
+    const argHour = Number.parseInt(argTime.split(":")[0])
+    const runHourInt = Number.parseInt(runHour)
+
+    // Convertir hora ARG a UTC
+    const utcHour = argHour + 3 // Argentina es UTC-3
+
+    // Calcular offset desde la hora de corrida
+    let offset = utcHour - runHourInt
+
+    // Manejar cambios de día
+    if (offset < 0) {
+      offset += 24
+    }
+
+    return offset
+  }
+
   const updateAvailableHours = () => {
-    // Extraer horas disponibles de los nombres de archivos
-    const hours = productos
+    if (productos.length === 0) {
+      setAvailableHours([])
+      return
+    }
+
+    // Extraer información de los nombres de archivos
+    const hoursInfo = productos
       .map((p) => {
-        // Buscar patrón +HH en el nombre del archivo
-        const match = p.nombre_archivo.match(/\+(\d{2})/)
+        // Buscar patrón de corrida y offset: YYYY-MM-DD_HH+HH
+        const match = p.nombre_archivo.match(/(\d{4}-\d{2}-\d{2})_(\d{2})\+(\d{2})/)
         if (match) {
-          const hour = Number.parseInt(match[1])
-          return `${hour.toString().padStart(2, "0")}:00`
+          const [, date, runHour, offset] = match
+          const argTime = offsetToArgTime(offset, runHour)
+          return {
+            argTime,
+            offset: Number.parseInt(offset),
+            runHour: Number.parseInt(runHour),
+            filename: p.nombre_archivo,
+          }
         }
         return null
       })
       .filter(Boolean)
-      .sort((a, b) => {
-        const hourA = Number.parseInt(a.split(":")[0])
-        const hourB = Number.parseInt(b.split(":")[0])
-        return hourA - hourB
-      })
 
-    const uniqueHours = [...new Set(hours)]
+    // Obtener horas únicas y ordenarlas
+    const uniqueHours = [...new Set(hoursInfo.map((h) => h.argTime))].sort((a, b) => {
+      const hourA = Number.parseInt(a.split(":")[0])
+      const hourB = Number.parseInt(b.split(":")[0])
+      return hourA - hourB
+    })
+
     setAvailableHours(uniqueHours)
 
-    console.log("Horas disponibles:", uniqueHours)
+    console.log("Horas disponibles (ARG):", uniqueHours)
+    console.log("Información de archivos:", hoursInfo)
 
     // Si la hora seleccionada no está disponible, seleccionar la primera disponible
     if (uniqueHours.length > 0 && !uniqueHours.includes(selectedTime)) {
@@ -245,14 +296,23 @@ const WRFSection = ({ loading: initialLoading }) => {
       return
     }
 
-    // Convertir hora seleccionada a formato +HH
-    const selectedHourNumber = Number.parseInt(selectedTime.split(":")[0])
-    const hourPattern = `+${selectedHourNumber.toString().padStart(2, "0")}`
+    console.log("Buscando imagen para hora ARG:", selectedTime)
 
-    // Buscar producto que coincida con la hora
-    const matchingProduct = productos.find((p) => p.nombre_archivo.includes(hourPattern))
+    // Buscar el producto que corresponde a la hora ARG seleccionada
+    const matchingProduct = productos.find((p) => {
+      // Extraer información del nombre del archivo
+      const match = p.nombre_archivo.match(/(\d{4}-\d{2}-\d{2})_(\d{2})\+(\d{2})/)
+      if (match) {
+        const [, date, runHour, offset] = match
+        const argTime = offsetToArgTime(offset, runHour)
 
-    console.log("Buscando imagen para hora:", selectedTime, "patrón:", hourPattern)
+        console.log(`Archivo: ${p.nombre_archivo} -> Hora ARG: ${argTime}`)
+
+        return argTime === selectedTime
+      }
+      return false
+    })
+
     console.log("Producto encontrado:", matchingProduct)
 
     if (matchingProduct) {
