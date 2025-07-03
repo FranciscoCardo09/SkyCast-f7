@@ -31,6 +31,7 @@ const WRFSection = ({ loading: initialLoading }) => {
   const [availableHours, setAvailableHours] = useState([])
   const [loading, setLoading] = useState(initialLoading)
   const [currentImage, setCurrentImage] = useState(null)
+  const [debugInfo, setDebugInfo] = useState("")
 
   // TODAS las variables WRF disponibles según el JSON
   const variables = [
@@ -245,8 +246,13 @@ const WRFSection = ({ loading: initialLoading }) => {
 
       setProductos(currentProductos) // Para mostrar estadísticas
       setAllProductos(todosLosProductos) // Para calcular horas disponibles
+
+      setDebugInfo(
+        `Productos: ${currentProductos.length} (${todosLosProductos.length} total) | Variable: ${selectedVariable}`,
+      )
     } catch (error) {
       console.error("Error loading WRF data:", error)
+      setDebugInfo(`Error: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -387,6 +393,7 @@ const WRFSection = ({ loading: initialLoading }) => {
             <p className="text-gray-600">
               Productos horarios del modelo meteorológico WRF para Córdoba. {variables.length} variables disponibles.
             </p>
+            {debugInfo && <p className="text-sm text-blue-600 mt-2">Debug: {debugInfo}</p>}
           </div>
         </div>
       </div>
@@ -575,7 +582,8 @@ const WRFSection = ({ loading: initialLoading }) => {
               <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-2" />
               <p className="text-gray-500 mb-2">No hay datos disponibles para la fecha y hora seleccionadas</p>
               <p className="text-sm text-gray-400">
-                Fecha: {format(selectedDate, "dd/MM/yyyy")} | Variable: {selectedVariable} | Hora: {selectedTime}
+                Productos encontrados: {productos.length} | Fecha: {format(selectedDate, "dd/MM/yyyy")} | Variable:{" "}
+                {selectedVariable} | Hora: {selectedTime}
               </p>
               <p className="text-xs text-gray-400 mt-2">Horas disponibles: {availableHours.join(", ") || "Ninguna"}</p>
             </div>

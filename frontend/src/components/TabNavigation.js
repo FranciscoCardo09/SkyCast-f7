@@ -1,61 +1,64 @@
 "use client"
-import { Thermometer, Flame, Activity, Wind } from "lucide-react"
 
-const TabNavigation = ({ activeTab, onTabChange }) => {
+import { Thermometer, Flame, Wind, Activity } from "lucide-react"
+
+const TabNavigation = ({ activeTab, onTabChange, estadisticas }) => {
   const tabs = [
     {
-      id: "wrf",
-      name: "WRF",
+      id: "WRF",
+      label: "WRF",
       icon: Thermometer,
       description: "Modelo meteorológico",
+      count: estadisticas?.variables_wrf?.length || 0,
     },
     {
-      id: "fwi",
-      name: "FWI",
+      id: "FWI",
+      label: "FWI",
       icon: Flame,
       description: "Índice de peligro de incendio",
+      count: 1,
     },
     {
-      id: "gases",
-      name: "Gases",
+      id: "Gases",
+      label: "Gases",
       icon: Activity,
-      description: "Calidad del aire",
+      description: "Medición de gases",
+      count: 2,
     },
     {
-      id: "vientos",
-      name: "Vientos",
+      id: "Vientos",
+      label: "Vientos",
       icon: Wind,
-      description: "Análisis de vientos",
+      description: "Ráfagas en rutas",
+      count: 1,
     },
   ]
 
   return (
-    <div className="flex flex-wrap gap-2 mb-6">
-      {tabs.map((tab) => {
-        const Icon = tab.icon
-        const isActive = activeTab === tab.id
+    <div className="card">
+      <div className="flex flex-wrap gap-3 justify-center">
+        {tabs.map((tab) => {
+          const Icon = tab.icon
+          const isActive = activeTab === tab.id
 
-        return (
-          <button
-            key={tab.id}
-            onClick={() => onTabChange(tab.id)}
-            className={`
-              flex items-center space-x-2 px-4 py-3 rounded-lg font-medium transition-all duration-200
-              ${
-                isActive
-                  ? "bg-blue-600 text-white shadow-lg"
-                  : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
-              }
-            `}
-          >
-            <Icon className="h-5 w-5" />
-            <div className="text-left">
-              <div className="font-semibold">{tab.name}</div>
-              <div className={`text-xs ${isActive ? "text-blue-100" : "text-gray-500"}`}>{tab.description}</div>
-            </div>
-          </button>
-        )
-      })}
+          return (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              className={`
+                tab-button flex items-center space-x-3 min-w-[140px]
+                ${isActive ? "tab-button-active" : "tab-button-inactive"}
+              `}
+            >
+              <Icon className="h-5 w-5" />
+              <div className="text-left">
+                <div className="font-semibold">{tab.label}</div>
+                <div className="text-xs opacity-75">{tab.count} productos</div>
+              </div>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useRef, useEffect } from "react"
 import { X, ZoomIn, ZoomOut, RotateCcw } from "lucide-react"
 
 const ZoomableImage = ({ src, alt, className = "" }) => {
@@ -10,276 +10,236 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [imageLoaded, setImageLoaded] = useState(false)
-
-  const modalRef = useRef(null)
   const imageRef = useRef(null)
 
-  // Reset state when modal opens
-  const openModal = useCallback(() => {
+  const openModal = () => {
     setIsModalOpen(true)
     setScale(1)
     setPosition({ x: 0, y: 0 })
     setImageLoaded(false)
-    document.body.style.overflow = "hidden"
-  }, [])
+  }
 
-  // Close modal and cleanup
-  const closeModal = useCallback(() => {
+  const closeModal = () => {
     setIsModalOpen(false)
     setScale(1)
     setPosition({ x: 0, y: 0 })
-    setIsDragging(false)
     setImageLoaded(false)
-    document.body.style.overflow = "unset"
-  }, [])
+  }
 
-  // Zoom functions
-  const zoomIn = useCallback(() => {
+  const handleZoomIn = () => {
     setScale((prev) => Math.min(prev * 1.5, 5))
-  }, [])
+  }
 
-  const zoomOut = useCallback(() => {
+  const handleZoomOut = () => {
     setScale((prev) => Math.max(prev / 1.5, 0.5))
-  }, [])
+  }
 
-  const resetZoom = useCallback(() => {
+  const handleReset = () => {
     setScale(1)
     setPosition({ x: 0, y: 0 })
-  }, [])
+  }
 
-  // Mouse wheel zoom
-  const handleWheel = useCallback(
-    (e) => {
-      if (!isModalOpen || !imageLoaded) return
-
+  const handleWheel = (e) => {
+    if (isModalOpen) {
       e.preventDefault()
-      e.stopPropagation()
-
       const delta = e.deltaY > 0 ? 0.9 : 1.1
       setScale((prev) => Math.min(Math.max(prev * delta, 0.5), 5))
-    },
-    [isModalOpen, imageLoaded],
-  )
+    }
+  }
 
-  // Mouse drag handlers
-  const handleMouseDown = useCallback(
-    (e) => {
-      if (!isModalOpen || !imageLoaded || scale <= 1) return
-
-      e.preventDefault()
+  const handleMouseDown = (e) => {
+    if (scale > 1 && isModalOpen) {
       setIsDragging(true)
       setDragStart({
         x: e.clientX - position.x,
         y: e.clientY - position.y,
       })
-    },
-    [isModalOpen, imageLoaded, scale, position],
-  )
-
-  const handleMouseMove = useCallback(
-    (e) => {
-      if (!isDragging || !isModalOpen) return
-
       e.preventDefault()
+    }
+  }
+
+  const handleMouseMove = (e) => {
+    if (isDragging && scale > 1 && isModalOpen) {
       setPosition({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
       })
-    },
-    [isDragging, isModalOpen, dragStart],
-  )
+    }
+  }
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = () => {
     setIsDragging(false)
-  }, [])
+  }
 
-  // Touch handlers for mobile
-  const handleTouchStart = useCallback(
-    (e) => {
-      if (!isModalOpen || !imageLoaded) return
-
-      if (e.touches.length === 1 && scale > 1) {
-        const touch = e.touches[0]
-        setIsDragging(true)
-        setDragStart({
-          x: touch.clientX - position.x,
-          y: touch.clientY - position.y,
-        })
-      }
-    },
-    [isModalOpen, imageLoaded, scale, position],
-  )
-
-  const handleTouchMove = useCallback(
-    (e) => {
-      if (!isDragging || !isModalOpen || e.touches.length !== 1) return
-
-      e.preventDefault()
-      const touch = e.touches[0]
-      setPosition({
-        x: touch.clientX - dragStart.x,
-        y: touch.clientY - dragStart.y,
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 1 && scale > 1) {
+      setIsDragging(true)
+      setDragStart({
+        x: e.touches[0].clientX - position.x,
+        y: e.touches[0].clientY - position.y,
       })
-    },
-    [isDragging, isModalOpen, dragStart],
-  )
+      e.preventDefault()
+    }
+  }
 
-  const handleTouchEnd = useCallback(() => {
+  const handleTouchMove = (e) => {
+    if (isDragging && e.touches.length === 1 && scale > 1) {
+      setPosition({
+        x: e.touches[0].clientX - dragStart.x,
+        y: e.touches[0].clientY - dragStart.y,
+      })
+      e.preventDefault()
+    }
+  }
+
+  const handleTouchEnd = () => {
     setIsDragging(false)
-  }, [])
+  }
 
-  // Click outside to close
-  const handleModalClick = useCallback(
-    (e) => {
-      if (e.target === modalRef.current) {
-        closeModal()
-      }
-    },
-    [closeModal],
-  )
+  const handleImageLoad = () => {
+    setImageLoaded(true)
+  }
 
-  // Keyboard handlers
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (!isModalOpen) return
+  const handleImageError = (e) => {
+    console.error("Error cargando imagen:", src)
+    e.target.style.display = "none"
+    if (e.target.nextSibling) {
+      e.target.nextSibling.style.display = "flex"
+    }
+  }
 
-      switch (e.key) {
-        case "Escape":
-          closeModal()
-          break
-        case "+":
-        case "=":
-          e.preventDefault()
-          zoomIn()
-          break
-        case "-":
-          e.preventDefault()
-          zoomOut()
-          break
-        case "0":
-          e.preventDefault()
-          resetZoom()
-          break
-        default:
-          break
-      }
-    },
-    [isModalOpen, closeModal, zoomIn, zoomOut, resetZoom],
-  )
-
-  // Effect for global event listeners
+  // Manejar eventos del mouse
   useEffect(() => {
     if (isModalOpen) {
-      // Keyboard events
-      document.addEventListener("keydown", handleKeyDown)
+      const handleGlobalMouseMove = (e) => handleMouseMove(e)
+      const handleGlobalMouseUp = () => handleMouseUp()
 
-      // Mouse events (only when dragging)
-      if (isDragging) {
-        document.addEventListener("mousemove", handleMouseMove)
-        document.addEventListener("mouseup", handleMouseUp)
-      }
+      document.addEventListener("mousemove", handleGlobalMouseMove)
+      document.addEventListener("mouseup", handleGlobalMouseUp)
 
       return () => {
-        document.removeEventListener("keydown", handleKeyDown)
-        document.removeEventListener("mousemove", handleMouseMove)
-        document.removeEventListener("mouseup", handleMouseUp)
+        document.removeEventListener("mousemove", handleGlobalMouseMove)
+        document.removeEventListener("mouseup", handleGlobalMouseUp)
       }
     }
-  }, [isModalOpen, isDragging, handleKeyDown, handleMouseMove, handleMouseUp])
+  }, [isDragging, dragStart, isModalOpen])
 
-  // Image load handler
-  const handleImageLoad = useCallback(() => {
-    setImageLoaded(true)
-  }, [])
+  // Prevenir scroll del body cuando el modal está abierto
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = "unset"
+    }
 
-  // Get cursor style
-  const getCursorStyle = () => {
-    if (!imageLoaded) return "wait"
-    if (isDragging) return "grabbing"
-    if (scale > 1) return "grab"
-    return "zoom-in"
-  }
+    return () => {
+      document.body.style.overflow = "unset"
+    }
+  }, [isModalOpen])
 
   return (
     <>
-      {/* Thumbnail image */}
-      <img
-        src={src || "/placeholder.svg"}
-        alt={alt}
-        className={`cursor-pointer hover:opacity-90 transition-opacity ${className}`}
-        onClick={openModal}
-        loading="lazy"
-      />
+      {/* Imagen principal */}
+      <div className={`relative group cursor-pointer ${className}`}>
+        <img
+          src={src || "/placeholder.svg?height=400&width=600"}
+          alt={alt}
+          className="w-full h-auto rounded-lg transition-transform duration-200 hover:scale-[1.02] cursor-pointer"
+          onClick={openModal}
+          onError={handleImageError}
+          onLoad={handleImageLoad}
+        />
+        <div className="hidden items-center justify-center h-64 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+          <div className="text-center">
+            <p className="text-gray-500 mb-2">Imagen no disponible</p>
+            <p className="text-xs text-gray-400">URL: {src}</p>
+          </div>
+        </div>
 
-      {/* Modal */}
+        {/* Overlay de zoom */}
+        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
+          <div className="bg-white rounded-full p-3 shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+            <ZoomIn className="h-6 w-6 text-gray-700" />
+          </div>
+        </div>
+      </div>
+
+      {/* Modal con zoom */}
       {isModalOpen && (
         <div
-          ref={modalRef}
           className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50"
-          onClick={handleModalClick}
+          onClick={closeModal}
         >
-          {/* Controls */}
-          <div className="absolute top-4 right-4 flex space-x-2 z-10">
-            <button
-              onClick={zoomOut}
-              className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded-lg transition-all"
-              disabled={scale <= 0.5}
-            >
-              <ZoomOut className="h-5 w-5" />
-            </button>
-            <button
-              onClick={zoomIn}
-              className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded-lg transition-all"
-              disabled={scale >= 5}
-            >
-              <ZoomIn className="h-5 w-5" />
-            </button>
-            <button
-              onClick={resetZoom}
-              className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded-lg transition-all"
-            >
-              <RotateCcw className="h-5 w-5" />
-            </button>
-            <button
-              onClick={closeModal}
-              className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-2 rounded-lg transition-all"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+          <div className="relative max-w-[95vw] max-h-[95vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Controles */}
+            <div className="absolute top-4 right-4 z-10 flex space-x-2">
+              <button
+                onClick={handleZoomIn}
+                className="bg-white rounded-full p-3 shadow-lg hover:bg-gray-50 transition-colors"
+                title="Zoom In"
+              >
+                <ZoomIn className="h-5 w-5 text-gray-700" />
+              </button>
+              <button
+                onClick={handleZoomOut}
+                className="bg-white rounded-full p-3 shadow-lg hover:bg-gray-50 transition-colors"
+                title="Zoom Out"
+              >
+                <ZoomOut className="h-5 w-5 text-gray-700" />
+              </button>
+              <button
+                onClick={handleReset}
+                className="bg-white rounded-full p-3 shadow-lg hover:bg-gray-50 transition-colors"
+                title="Reset"
+              >
+                <RotateCcw className="h-5 w-5 text-gray-700" />
+              </button>
+              <button
+                onClick={closeModal}
+                className="bg-white rounded-full p-3 shadow-lg hover:bg-gray-50 transition-colors"
+                title="Cerrar"
+              >
+                <X className="h-5 w-5 text-gray-700" />
+              </button>
+            </div>
 
-          {/* Zoom level indicator */}
-          <div className="absolute top-4 left-4 bg-white bg-opacity-20 text-white px-3 py-1 rounded-lg text-sm">
-            {Math.round(scale * 100)}%
-          </div>
+            {/* Imagen con zoom */}
+            <div className="flex items-center justify-center min-h-[50vh]">
+              <img
+                ref={imageRef}
+                src={src || "/placeholder.svg"}
+                alt={alt}
+                className={`max-w-none transition-transform duration-200 select-none ${
+                  scale > 1 ? "cursor-move" : "cursor-grab"
+                } ${isDragging ? "cursor-grabbing" : ""}`}
+                style={{
+                  transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+                  maxHeight: scale === 1 ? "80vh" : "none",
+                  maxWidth: scale === 1 ? "80vw" : "none",
+                }}
+                onMouseDown={handleMouseDown}
+                onWheel={handleWheel}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onLoad={handleImageLoad}
+                draggable={false}
+              />
+            </div>
 
-          {/* Image container */}
-          <div className="relative max-w-full max-h-full overflow-hidden">
-            <img
-              ref={imageRef}
-              src={src || "/placeholder.svg"}
-              alt={alt}
-              className="max-w-none transition-transform duration-200 ease-out select-none"
-              style={{
-                transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
-                cursor: getCursorStyle(),
-                maxWidth: "none",
-                maxHeight: "none",
-              }}
-              onLoad={handleImageLoad}
-              onMouseDown={handleMouseDown}
-              onWheel={handleWheel}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              draggable={false}
-            />
-          </div>
+            {/* Información de zoom */}
+            <div className="absolute bottom-4 left-4 bg-white rounded-lg px-4 py-2 shadow-lg">
+              <span className="text-sm text-gray-700 font-medium">{Math.round(scale * 100)}%</span>
+            </div>
 
-          {/* Instructions */}
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg text-sm text-center">
-            <div>🖱️ Rueda del mouse: Zoom | 🤏 Arrastrar: Mover</div>
-            <div>⌨️ ESC: Cerrar | +/-: Zoom | 0: Reset</div>
+            {/* Instrucciones */}
+            <div className="absolute bottom-4 right-4 bg-white rounded-lg px-4 py-2 shadow-lg max-w-xs">
+              <div className="text-xs text-gray-600">
+                <div>🖱️ Rueda: Zoom</div>
+                <div>🖱️ Arrastrar: Mover</div>
+                <div>📱 Pellizcar: Zoom (móvil)</div>
+              </div>
+            </div>
           </div>
         </div>
       )}
