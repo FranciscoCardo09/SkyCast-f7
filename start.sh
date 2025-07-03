@@ -216,6 +216,20 @@ else
     info "Hubo algunos errores en la descarga, pero continuando..."
 fi
 
+# Verificar que se cargaron todas las variables
+progress "Verificando variables WRF cargadas..."
+docker-compose exec -T web python manage.py shell << 'EOF'
+from productos.models import Producto
+variables_wrf = Producto.objects.filter(
+  tipo_producto__nombre='wrf_cba'
+).values_list('variable', flat=True).distinct()
+
+print(f"Variables WRF cargadas: {len(variables_wrf)}")
+for variable in sorted(variables_wrf):
+  count = Producto.objects.filter(tipo_producto__nombre='wrf_cba', variable=variable).count()
+  print(f"  - {variable}: {count} productos")
+EOF
+
 # Configurar Frontend React
 section "CONFIGURANDO FRONTEND REACT"
 

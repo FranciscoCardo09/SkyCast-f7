@@ -177,17 +177,19 @@ class Command(BaseCommand):
         self.stdout.write(f'  📅 Generando desde: {start_date} ({days} días hacia atrás)')
         
         tipo_wrf = TipoProducto.objects.get(nombre='wrf_cba')
+        # Cargar TODAS las variables disponibles del JSON
         variables = list(proyecto_data['variables_disponibles'].keys())
+        self.stdout.write(f'  📊 Variables encontradas en JSON: {len(variables)}')
+        self.stdout.write(f'  📋 Variables: {", ".join(variables)}')
         productos_creados = 0
         imagenes_descargadas = 0
         
         # Corridas típicas del WRF (06 y 18 UTC)
         corridas = ['06', '18']
         
-        # Horas de pronóstico según las imágenes: desde +09 hasta +25 (cada hora)
-        horas_pronostico = list(range(9, 26))  # 9, 10, 11, ..., 25
+        # Horas de pronóstico según las imágenes: desde +00 hasta +48 (cada hora)
+        horas_pronostico = list(range(0, 49))  # 0, 1, 2, ..., 48
         
-        self.stdout.write(f'  📊 Variables: {len(variables)} ({", ".join(variables[:5])}...)')
         self.stdout.write(f'  ⏰ Horas de pronóstico: {len(horas_pronostico)} (desde +{horas_pronostico[0]:02d} hasta +{horas_pronostico[-1]:02d})')
         
         for dias_atras in range(days):
