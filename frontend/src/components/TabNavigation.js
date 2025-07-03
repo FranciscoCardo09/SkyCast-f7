@@ -9,28 +9,24 @@ const TabNavigation = ({ activeTab, onTabChange, estadisticas }) => {
       label: "WRF",
       icon: Thermometer,
       description: "Modelo meteorológico",
-      count: estadisticas?.variables_wrf?.length || 0,
     },
     {
       id: "FWI",
       label: "FWI",
       icon: Flame,
       description: "Índice de peligro de incendio",
-      count: 1,
     },
     {
       id: "Gases",
       label: "Gases",
       icon: Activity,
       description: "Medición de gases",
-      count: 2,
     },
     {
       id: "Vientos",
       label: "Vientos",
       icon: Wind,
       description: "Ráfagas en rutas",
-      count: 1,
     },
   ]
 
@@ -53,7 +49,7 @@ const TabNavigation = ({ activeTab, onTabChange, estadisticas }) => {
               <Icon className="h-5 w-5" />
               <div className="text-left">
                 <div className="font-semibold">{tab.label}</div>
-                <div className="text-xs opacity-75">{tab.count} productos</div>
+                <div className="text-xs opacity-75">{tab.description}</div>
               </div>
             </button>
           )
