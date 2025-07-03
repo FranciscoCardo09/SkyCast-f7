@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { X, ZoomIn, ZoomOut, RotateCcw } from "lucide-react"
 
 const ZoomableImage = ({ src, alt, className = "" }) => {
@@ -11,110 +11,134 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [imageLoaded, setImageLoaded] = useState(false)
   const imageRef = useRef(null)
+  const modalRef = useRef(null)
 
-  const openModal = () => {
+  const openModal = useCallback(() => {
     setIsModalOpen(true)
     setScale(1)
     setPosition({ x: 0, y: 0 })
     setImageLoaded(false)
-  }
+    setIsDragging(false)
+  }, [])
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setIsModalOpen(false)
     setScale(1)
     setPosition({ x: 0, y: 0 })
     setImageLoaded(false)
-  }
+    setIsDragging(false)
+  }, [])
 
-  const handleZoomIn = () => {
+  const handleZoomIn = useCallback(() => {
     setScale((prev) => Math.min(prev * 1.5, 5))
-  }
+  }, [])
 
-  const handleZoomOut = () => {
+  const handleZoomOut = useCallback(() => {
     setScale((prev) => Math.max(prev / 1.5, 0.5))
-  }
+  }, [])
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setScale(1)
     setPosition({ x: 0, y: 0 })
-  }
+  }, [])
 
-  const handleWheel = (e) => {
-    if (isModalOpen) {
-      e.preventDefault()
-      const delta = e.deltaY > 0 ? 0.9 : 1.1
-      setScale((prev) => Math.min(Math.max(prev * delta, 0.5), 5))
-    }
-  }
+  const handleWheel = useCallback(
+    (e) => {
+      if (isModalOpen) {
+        e.preventDefault()
+        e.stopPropagation()
+        const delta = e.deltaY > 0 ? 0.9 : 1.1
+        setScale((prev) => Math.min(Math.max(prev * delta, 0.5), 5))
+      }
+    },
+    [isModalOpen],
+  )
 
-  const handleMouseDown = (e) => {
-    if (scale > 1 && isModalOpen) {
-      setIsDragging(true)
-      setDragStart({
-        x: e.clientX - position.x,
-        y: e.clientY - position.y,
-      })
-      e.preventDefault()
-    }
-  }
+  const handleMouseDown = useCallback(
+    (e) => {
+      if (scale > 1 && isModalOpen) {
+        setIsDragging(true)
+        setDragStart({
+          x: e.clientX - position.x,
+          y: e.clientY - position.y,
+        })
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    },
+    [scale, isModalOpen, position],
+  )
 
-  const handleMouseMove = (e) => {
-    if (isDragging && scale > 1 && isModalOpen) {
-      setPosition({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y,
-      })
-    }
-  }
+  const handleMouseMove = useCallback(
+    (e) => {
+      if (isDragging && scale > 1 && isModalOpen) {
+        e.preventDefault()
+        setPosition({
+          x: e.clientX - dragStart.x,
+          y: e.clientY - dragStart.y,
+        })
+      }
+    },
+    [isDragging, scale, isModalOpen, dragStart],
+  )
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     setIsDragging(false)
-  }
+  }, [])
 
-  const handleTouchStart = (e) => {
-    if (e.touches.length === 1 && scale > 1) {
-      setIsDragging(true)
-      setDragStart({
-        x: e.touches[0].clientX - position.x,
-        y: e.touches[0].clientY - position.y,
-      })
-      e.preventDefault()
-    }
-  }
+  const handleTouchStart = useCallback(
+    (e) => {
+      if (e.touches.length === 1 && scale > 1) {
+        setIsDragging(true)
+        setDragStart({
+          x: e.touches[0].clientX - position.x,
+          y: e.touches[0].clientY - position.y,
+        })
+        e.preventDefault()
+      }
+    },
+    [scale, position],
+  )
 
-  const handleTouchMove = (e) => {
-    if (isDragging && e.touches.length === 1 && scale > 1) {
-      setPosition({
-        x: e.touches[0].clientX - dragStart.x,
-        y: e.touches[0].clientY - dragStart.y,
-      })
-      e.preventDefault()
-    }
-  }
+  const handleTouchMove = useCallback(
+    (e) => {
+      if (isDragging && e.touches.length === 1 && scale > 1) {
+        e.preventDefault()
+        setPosition({
+          x: e.touches[0].clientX - dragStart.x,
+          y: e.touches[0].clientY - dragStart.y,
+        })
+      }
+    },
+    [isDragging, scale, dragStart],
+  )
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = useCallback(() => {
     setIsDragging(false)
-  }
+  }, [])
 
-  const handleImageLoad = () => {
+  const handleImageLoad = useCallback(() => {
     setImageLoaded(true)
-  }
+  }, [])
 
-  const handleImageError = (e) => {
-    console.error("Error cargando imagen:", src)
-    e.target.style.display = "none"
-    if (e.target.nextSibling) {
-      e.target.nextSibling.style.display = "flex"
-    }
-  }
+  const handleImageError = useCallback(
+    (e) => {
+      console.error("Error cargando imagen:", src)
+      e.target.style.display = "none"
+      if (e.target.nextSibling) {
+        e.target.nextSibling.style.display = "flex"
+      }
+    },
+    [src],
+  )
 
-  // Manejar eventos del mouse
+  // Manejar eventos globales del mouse
   useEffect(() => {
-    if (isModalOpen) {
+    if (isModalOpen && isDragging) {
       const handleGlobalMouseMove = (e) => handleMouseMove(e)
       const handleGlobalMouseUp = () => handleMouseUp()
 
-      document.addEventListener("mousemove", handleGlobalMouseMove)
+      document.addEventListener("mousemove", handleGlobalMouseMove, { passive: false })
       document.addEventListener("mouseup", handleGlobalMouseUp)
 
       return () => {
@@ -122,12 +146,21 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
         document.removeEventListener("mouseup", handleGlobalMouseUp)
       }
     }
-  }, [isDragging, dragStart, isModalOpen])
+  }, [isModalOpen, isDragging, handleMouseMove, handleMouseUp])
 
   // Prevenir scroll del body cuando el modal está abierto
   useEffect(() => {
     if (isModalOpen) {
       document.body.style.overflow = "hidden"
+      // Añadir event listener para wheel en el modal
+      const modalElement = modalRef.current
+      if (modalElement) {
+        modalElement.addEventListener("wheel", handleWheel, { passive: false })
+        return () => {
+          modalElement.removeEventListener("wheel", handleWheel)
+          document.body.style.overflow = "unset"
+        }
+      }
     } else {
       document.body.style.overflow = "unset"
     }
@@ -135,7 +168,23 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
     return () => {
       document.body.style.overflow = "unset"
     }
-  }, [isModalOpen])
+  }, [isModalOpen, handleWheel])
+
+  // Manejar tecla ESC para cerrar
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && isModalOpen) {
+        closeModal()
+      }
+    }
+
+    if (isModalOpen) {
+      document.addEventListener("keydown", handleKeyDown)
+      return () => {
+        document.removeEventListener("keydown", handleKeyDown)
+      }
+    }
+  }, [isModalOpen, closeModal])
 
   return (
     <>
@@ -148,6 +197,7 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
           onClick={openModal}
           onError={handleImageError}
           onLoad={handleImageLoad}
+          draggable={false}
         />
         <div className="hidden items-center justify-center h-64 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
           <div className="text-center">
@@ -167,6 +217,7 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
       {/* Modal con zoom */}
       {isModalOpen && (
         <div
+          ref={modalRef}
           className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50"
           onClick={closeModal}
         >
@@ -218,7 +269,6 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
                   maxWidth: scale === 1 ? "80vw" : "none",
                 }}
                 onMouseDown={handleMouseDown}
-                onWheel={handleWheel}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
@@ -238,6 +288,7 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
                 <div>🖱️ Rueda: Zoom</div>
                 <div>🖱️ Arrastrar: Mover</div>
                 <div>📱 Pellizcar: Zoom (móvil)</div>
+                <div>⌨️ ESC: Cerrar</div>
               </div>
             </div>
           </div>

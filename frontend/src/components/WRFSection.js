@@ -398,148 +398,147 @@ const WRFSection = ({ loading: initialLoading }) => {
         </div>
       </div>
 
-      {/* Date and Variable Selector */}
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Date Selector */}
-        <div className="card">
-          <div className="flex items-center space-x-3 mb-4">
-            <Calendar className="h-5 w-5 text-blue-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Fecha</h3>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar fecha</label>
-              <DatePicker
-                selected={selectedDate}
-                onChange={setSelectedDate}
-                dateFormat="dd/MM/yyyy"
-                locale={es}
-                maxDate={new Date()} // Solo hasta hoy
-                minDate={new Date(2020, 0, 1)} // Desde 2020 - sin restricciones estrictas
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                showYearDropdown
-                showMonthDropdown
-                dropdownMode="select"
-              />
-              <p className="text-sm text-gray-500 mt-1">Selecciona cualquier fecha disponible</p>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
-              <span className="font-semibold text-blue-800">{format(selectedDate, "dd/MM/yyyy", { locale: es })}</span>
-            </div>
-          </div>
+      {/* Date Selector - Ancho completo */}
+      <div className="card">
+        <div className="flex items-center space-x-3 mb-4">
+          <Calendar className="h-5 w-5 text-blue-600" />
+          <h3 className="text-lg font-semibold text-gray-900">Fecha</h3>
         </div>
 
-        {/* Variable Selector - Dropdown */}
-        <div className="card">
-          <div className="flex items-center space-x-3 mb-4">
-            {selectedVariableData && (
-              <div
-                className={`w-10 h-10 rounded-lg flex items-center justify-center ${selectedVariableData.bgColor} border ${selectedVariableData.borderColor}`}
-              >
-                <selectedVariableData.icon className={`h-5 w-5 ${selectedVariableData.color}`} />
-              </div>
-            )}
-            <h3 className="text-lg font-semibold text-gray-900">Variable Meteorológica</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar fecha</label>
+            <DatePicker
+              selected={selectedDate}
+              onChange={setSelectedDate}
+              dateFormat="dd/MM/yyyy"
+              locale={es}
+              maxDate={new Date()} // Solo hasta hoy
+              minDate={new Date(2020, 0, 1)} // Desde 2020 - sin restricciones estrictas
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              showYearDropdown
+              showMonthDropdown
+              dropdownMode="select"
+            />
+            <p className="text-sm text-gray-500 mt-1">Selecciona cualquier fecha disponible</p>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar variable</label>
-              <div className="relative">
-                <select
-                  value={selectedVariable}
-                  onChange={(e) => setSelectedVariable(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white pr-10"
-                >
-                  {/* Agrupar por categoría */}
-                  <optgroup label="🌡️ Temperatura">
-                    {variables
-                      .filter((v) => v.category === "Temperatura")
-                      .map((variable) => (
-                        <option key={variable.id} value={variable.id}>
-                          {variable.name}
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="🌧️ Precipitación">
-                    {variables
-                      .filter((v) => v.category === "Precipitación")
-                      .map((variable) => (
-                        <option key={variable.id} value={variable.id}>
-                          {variable.name}
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="💨 Viento">
-                    {variables
-                      .filter((v) => v.category === "Viento")
-                      .map((variable) => (
-                        <option key={variable.id} value={variable.id}>
-                          {variable.name}
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="☁️ Nubes">
-                    {variables
-                      .filter((v) => v.category === "Nubes")
-                      .map((variable) => (
-                        <option key={variable.id} value={variable.id}>
-                          {variable.name}
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="📡 Radar">
-                    {variables
-                      .filter((v) => v.category === "Radar")
-                      .map((variable) => (
-                        <option key={variable.id} value={variable.id}>
-                          {variable.name}
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="💧 Humedad">
-                    {variables
-                      .filter((v) => v.category === "Humedad")
-                      .map((variable) => (
-                        <option key={variable.id} value={variable.id}>
-                          {variable.name}
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="⚡ Convección">
-                    {variables
-                      .filter((v) => v.category === "Convección")
-                      .map((variable) => (
-                        <option key={variable.id} value={variable.id}>
-                          {variable.name}
-                        </option>
-                      ))}
-                  </optgroup>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-              </div>
-            </div>
-
-            {selectedVariableData && (
-              <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg">
-                <p className="text-sm text-gray-700">{selectedVariableData.description}</p>
-                <div className="flex items-center space-x-2 mt-2">
-                  <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">
-                    {selectedVariableData.category}
-                  </span>
-                  <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
-                    {selectedVariable.toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            )}
+          <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg text-center">
+            <span className="font-semibold text-blue-800 text-lg">
+              {format(selectedDate, "dd/MM/yyyy", { locale: es })}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Hour Selector with Navigation */}
+      {/* Variable Selector - Dropdown */}
+      <div className="card">
+        <div className="flex items-center space-x-3 mb-4">
+          {selectedVariableData && (
+            <div
+              className={`w-10 h-10 rounded-lg flex items-center justify-center ${selectedVariableData.bgColor} border ${selectedVariableData.borderColor}`}
+            >
+              <selectedVariableData.icon className={`h-5 w-5 ${selectedVariableData.color}`} />
+            </div>
+          )}
+          <h3 className="text-lg font-semibold text-gray-900">Variable Meteorológica</h3>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar variable</label>
+            <div className="relative">
+              <select
+                value={selectedVariable}
+                onChange={(e) => setSelectedVariable(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white pr-10"
+              >
+                {/* Agrupar por categoría */}
+                <optgroup label="🌡️ Temperatura">
+                  {variables
+                    .filter((v) => v.category === "Temperatura")
+                    .map((variable) => (
+                      <option key={variable.id} value={variable.id}>
+                        {variable.name}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="🌧️ Precipitación">
+                  {variables
+                    .filter((v) => v.category === "Precipitación")
+                    .map((variable) => (
+                      <option key={variable.id} value={variable.id}>
+                        {variable.name}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="💨 Viento">
+                  {variables
+                    .filter((v) => v.category === "Viento")
+                    .map((variable) => (
+                      <option key={variable.id} value={variable.id}>
+                        {variable.name}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="☁️ Nubes">
+                  {variables
+                    .filter((v) => v.category === "Nubes")
+                    .map((variable) => (
+                      <option key={variable.id} value={variable.id}>
+                        {variable.name}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="📡 Radar">
+                  {variables
+                    .filter((v) => v.category === "Radar")
+                    .map((variable) => (
+                      <option key={variable.id} value={variable.id}>
+                        {variable.name}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="💧 Humedad">
+                  {variables
+                    .filter((v) => v.category === "Humedad")
+                    .map((variable) => (
+                      <option key={variable.id} value={variable.id}>
+                        {variable.name}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="⚡ Convección">
+                  {variables
+                    .filter((v) => v.category === "Convección")
+                    .map((variable) => (
+                      <option key={variable.id} value={variable.id}>
+                        {variable.name}
+                      </option>
+                    ))}
+                </optgroup>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {selectedVariableData && (
+            <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg">
+              <p className="text-sm text-gray-700">{selectedVariableData.description}</p>
+              <div className="flex items-center space-x-2 mt-2">
+                <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">
+                  {selectedVariableData.category}
+                </span>
+                <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                  {selectedVariable.toUpperCase()}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Hour Selector with Dropdown */}
       <HourSelector selectedHour={selectedTime} onHourChange={setSelectedTime} availableHours={availableHours} />
 
       {/* Image Display */}
