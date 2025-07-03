@@ -20,13 +20,37 @@
           "nombre": "Temperatura a 2 metros",
           "descripcion": "Temperatura del aire a 2 metros sobre el suelo (°C)."
         },
+        "cl": {
+          "nombre": "Cobertura nubosa",
+          "descripcion": "Fracción de cobertura nubosa total."
+        },
+        "ctt": {
+          "nombre": "Temperatura tope de nubes",
+          "descripcion": "Temperatura en el tope de las nubes (°C)."
+        },
         "dbz_altura": {
           "nombre": "Reflectividad en altura",
           "descripcion": "Simulación de reflectividad radar (dBZ) a diferentes niveles del modelo."
         },
+        "hail": {
+          "nombre": "Granizo",
+          "descripcion": "Probabilidad o intensidad de granizo."
+        },
+        "max_dbz": {
+          "nombre": "Reflectividad máxima",
+          "descripcion": "Máxima reflectividad radar en la columna (dBZ)."
+        },
+        "mcape": {
+          "nombre": "CAPE máximo",
+          "descripcion": "Energía potencial convectiva disponible máxima (J/kg)."
+        },
         "ppn": {
           "nombre": "Precipitación horaria",
           "descripcion": "Tasa instantánea de precipitación (mm/h)."
+        },
+        "ppnaccum": {
+          "nombre": "Precipitación acumulada",
+          "descripcion": "Acumulado total de precipitación desde el inicio de la corrida (mm)."
         },
         "rh2": {
           "nombre": "Humedad relativa a 2 metros",
@@ -36,6 +60,10 @@
           "nombre": "Riesgo por viento",
           "descripcion": "Áreas con riesgo de viento fuerte o ráfagas intensas."
         },
+        "snow": {
+          "nombre": "Nieve",
+          "descripcion": "Acumulación de nieve o probabilidad de nevadas."
+        },
         "wdir10": {
           "nombre": "Dirección del viento a 10 metros",
           "descripcion": "Dirección desde donde sopla el viento (°) a 10 m de altura."
@@ -44,9 +72,9 @@
           "nombre": "Velocidad del viento a 10 metros",
           "descripcion": "Velocidad del viento (m/s) a 10 m de altura."
         },
-        "ppnaccum": {
-          "nombre": "Precipitación acumulada",
-          "descripcion": "Acumulado total de precipitación desde el inicio de la corrida (mm)."
+        "wspd_altura": {
+          "nombre": "Velocidad del viento en altura",
+          "descripcion": "Velocidad del viento a diferentes niveles de altura."
         }
       },
       "ejemplo_directorio": "https://yaku.ohmc.ar/public/wrf/img/CBA/2025_06/26_06/t2/",

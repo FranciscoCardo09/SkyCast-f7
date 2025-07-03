@@ -1,21 +1,24 @@
 from django.core.management.base import BaseCommand
+from django.core.files.base import ContentFile
 from productos.models import TipoProducto, Producto, FechaProducto
 from datetime import datetime, date, timedelta
 import json
 import os
+import requests
 import logging
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
-    help = 'Cargar datos desde el JSON de estructura OHMC'
+    help = 'Cargar datos desde el JSON de estructura OHMC con descarga de imágenes'
     
     def add_arguments(self, parser):
         parser.add_argument(
             '--days',
             type=int,
-            default=30,
-            help='Número de días hacia atrás para generar datos (default: 30)',
+            default=7,
+            help='Número de días hacia atrás para generar datos (default: 7)',
         )
         parser.add_argument(
             '--json-file',
@@ -28,11 +31,23 @@ class Command(BaseCommand):
             type=str,
             help='Fecha de inicio en formato YYYY-MM-DD (default: basado en ultima_actualizacion del JSON)',
         )
+        parser.add_argument(
+            '--download-images',
+            action='store_true',
+            default=True,
+            help='Descargar imágenes físicamente (default: True)',
+        )
+        parser.add_argument(
+            '--no-download',
+            action='store_true',
+            help='No descargar imágenes, solo crear URLs',
+        )
     
     def handle(self, *args, **options):
         days = options['days']
         json_file = options['json_file']
         start_date_str = options.get('start_date')
+        download_images = options['download_images'] and not options['no_download']
         
         # Cargar JSON
         json_path = os.path.join(os.getcwd(), json_file)
@@ -45,32 +60,85 @@ class Command(BaseCommand):
         
         self.stdout.write(self.style.SUCCESS(f'📄 JSON cargado desde: {json_file}'))
         self.stdout.write(self.style.SUCCESS(f'🔄 Generando datos para {days} días...'))
+        if download_images:
+            self.stdout.write(self.style.SUCCESS('📥 Descarga de imágenes: ACTIVADA'))
+        else:
+            self.stdout.write(self.style.WARNING('📥 Descarga de imágenes: DESACTIVADA'))
         
         # 1. Crear tipos de productos
         self.create_tipos_productos(data)
         
         # 2. Cargar datos según el JSON
         total_productos = 0
+        total_imagenes = 0
         
         for proyecto_name, proyecto_data in data['proyectos'].items():
             self.stdout.write(f'\n📊 Procesando {proyecto_name}...')
             
             if proyecto_name == 'wrf_cba':
-                productos_creados = self.load_wrf_data(proyecto_data, days, start_date_str)
+                productos_creados, imagenes_descargadas = self.load_wrf_data(proyecto_data, days, start_date_str, download_images)
             elif proyecto_name == 'MedicionAire':
-                productos_creados = self.load_medicion_aire_data(proyecto_data, days, start_date_str)
+                productos_creados, imagenes_descargadas = self.load_medicion_aire_data(proyecto_data, days, start_date_str, download_images)
             elif proyecto_name in ['FWI', 'rutas_caminera']:
-                productos_creados = self.load_static_data(proyecto_name, proyecto_data)
+                productos_creados, imagenes_descargadas = self.load_static_data(proyecto_name, proyecto_data, download_images)
             else:
-                productos_creados = 0
+                productos_creados, imagenes_descargadas = 0, 0
             
             total_productos += productos_creados
-            self.stdout.write(self.style.SUCCESS(f'  ✅ {productos_creados} productos creados'))
+            total_imagenes += imagenes_descargadas
+            self.stdout.write(self.style.SUCCESS(f'  ✅ {productos_creados} productos creados, {imagenes_descargadas} imágenes descargadas'))
         
         # 3. Mostrar resumen
         self.show_summary()
         
-        self.stdout.write(self.style.SUCCESS(f'\n🎉 ¡Carga completada! Total: {total_productos} productos'))
+        self.stdout.write(self.style.SUCCESS(f'\n🎉 ¡Carga completada!'))
+        self.stdout.write(self.style.SUCCESS(f'📊 Total productos: {total_productos}'))
+        self.stdout.write(self.style.SUCCESS(f'📸 Total imágenes descargadas: {total_imagenes}'))
+    
+    def download_and_save_image(self, producto, url):
+        """Descargar imagen desde URL y guardarla físicamente"""
+        try:
+            self.stdout.write(f'    📥 Descargando: {os.path.basename(url)}')
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=30, stream=True)
+            
+            if response.status_code == 200:
+                # Obtener nombre del archivo desde la URL
+                parsed_url = urlparse(url)
+                filename = os.path.basename(parsed_url.path)
+                
+                # Si no hay extensión, usar .png por defecto
+                if not filename or '.' not in filename:
+                    filename = f"{producto.nombre_archivo}"
+                
+                # Guardar imagen en el campo foto
+                producto.foto.save(
+                    filename,
+                    ContentFile(response.content),
+                    save=True
+                )
+                self.stdout.write(self.style.SUCCESS(f'      ✅ Guardada: {filename}'))
+                return True
+            elif response.status_code == 404:
+                self.stdout.write(self.style.WARNING(f'      ⚠️ No encontrada (404): {os.path.basename(url)}'))
+                return False
+            else:
+                self.stdout.write(self.style.WARNING(f'      ⚠️ Error HTTP {response.status_code}'))
+                return False
+                
+        except requests.exceptions.Timeout:
+            self.stdout.write(self.style.WARNING(f'      ⏰ Timeout: {os.path.basename(url)}'))
+            return False
+        except requests.exceptions.ConnectionError:
+            self.stdout.write(self.style.WARNING(f'      🔌 Error de conexión: {os.path.basename(url)}'))
+            return False
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f'      ❌ Error: {str(e)[:50]}...'))
+            return False
     
     def create_tipos_productos(self, data):
         """Crear tipos de productos desde el JSON"""
@@ -94,8 +162,8 @@ class Command(BaseCommand):
                 tipo.save()
                 self.stdout.write(f'  🔄 Actualizado: {tipo.nombre}')
     
-    def load_wrf_data(self, proyecto_data, days, start_date_str):
-        """Cargar datos WRF basado en el JSON"""
+    def load_wrf_data(self, proyecto_data, days, start_date_str, download_images):
+        """Cargar datos WRF basado en el JSON con descarga de imágenes"""
         # Determinar fecha de inicio
         if start_date_str:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
@@ -111,18 +179,28 @@ class Command(BaseCommand):
         tipo_wrf = TipoProducto.objects.get(nombre='wrf_cba')
         variables = list(proyecto_data['variables_disponibles'].keys())
         productos_creados = 0
+        imagenes_descargadas = 0
         
         # Corridas típicas del WRF (06 y 18 UTC)
         corridas = ['06', '18']
         
-        # Horas de pronóstico típicas (cada 3 horas hasta 24h)
-        horas_pronostico = list(range(0, 25, 3))  # 0, 3, 6, 9, 12, 15, 18, 21, 24
+        # Horas de pronóstico según las imágenes: desde +09 hasta +25 (cada hora)
+        horas_pronostico = list(range(9, 26))  # 9, 10, 11, ..., 25
+        
+        self.stdout.write(f'  📊 Variables: {len(variables)} ({", ".join(variables[:5])}...)')
+        self.stdout.write(f'  ⏰ Horas de pronóstico: {len(horas_pronostico)} (desde +{horas_pronostico[0]:02d} hasta +{horas_pronostico[-1]:02d})')
         
         for dias_atras in range(days):
             fecha_actual = start_date - timedelta(days=dias_atras)
+            self.stdout.write(f'  📅 Procesando fecha: {fecha_actual}')
             
             for hora_corrida in corridas:
+                self.stdout.write(f'    🕐 Corrida: {hora_corrida}:00 UTC')
+                
                 for variable in variables:
+                    variable_productos = 0
+                    variable_imagenes = 0
+                    
                     for hora_offset in horas_pronostico:
                         # Generar URL según la estructura del JSON
                         # CBA/YYYY_MM/DD_HH/{variable}/{variable}-YYYY-MM-DD_HH+HH.png
@@ -147,6 +225,13 @@ class Command(BaseCommand):
                             producto.save()
                         else:
                             productos_creados += 1
+                            variable_productos += 1
+                        
+                        # Descargar imagen si está habilitado y no existe
+                        if download_images and not producto.foto:
+                            if self.download_and_save_image(producto, url):
+                                imagenes_descargadas += 1
+                                variable_imagenes += 1
                         
                         # Calcular fecha y hora del pronóstico
                         hora_total = int(hora_corrida) + hora_offset
@@ -166,11 +251,14 @@ class Command(BaseCommand):
                             hora=hora_obj,
                             producto=producto
                         )
+                    
+                    if variable_productos > 0 or variable_imagenes > 0:
+                        self.stdout.write(f'      📊 {variable}: {variable_productos} productos, {variable_imagenes} imágenes')
         
-        return productos_creados
+        return productos_creados, imagenes_descargadas
     
-    def load_medicion_aire_data(self, proyecto_data, days, start_date_str):
-        """Cargar datos de MedicionAire basado en el JSON"""
+    def load_medicion_aire_data(self, proyecto_data, days, start_date_str, download_images):
+        """Cargar datos de MedicionAire basado en el JSON con descarga de imágenes"""
         # Determinar fecha de inicio
         if start_date_str:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
@@ -183,6 +271,7 @@ class Command(BaseCommand):
         tipo_aire = TipoProducto.objects.get(nombre='MedicionAire')
         archivos = proyecto_data['archivos']
         productos_creados = 0
+        imagenes_descargadas = 0
         
         for dias_atras in range(days):
             fecha_actual = start_date - timedelta(days=dias_atras)
@@ -208,6 +297,11 @@ class Command(BaseCommand):
                 else:
                     productos_creados += 1
                 
+                # Descargar imagen si está habilitado y no existe
+                if download_images and not producto.foto:
+                    if self.download_and_save_image(producto, url):
+                        imagenes_descargadas += 1
+                
                 # Crear fecha (hora típica de actualización: 10:30)
                 FechaProducto.objects.get_or_create(
                     fecha=fecha_actual,
@@ -215,12 +309,13 @@ class Command(BaseCommand):
                     producto=producto
                 )
         
-        return productos_creados
+        return productos_creados, imagenes_descargadas
     
-    def load_static_data(self, proyecto_name, proyecto_data):
-        """Cargar datos estáticos (FWI, rutas_caminera)"""
+    def load_static_data(self, proyecto_name, proyecto_data, download_images):
+        """Cargar datos estáticos (FWI, rutas_caminera) con descarga de imágenes"""
         tipo = TipoProducto.objects.get(nombre=proyecto_name)
         productos_creados = 0
+        imagenes_descargadas = 0
         
         for archivo in proyecto_data['archivos']:
             url = f"{proyecto_data['url_base']}{archivo}"
@@ -237,6 +332,11 @@ class Command(BaseCommand):
             else:
                 productos_creados += 1
             
+            # Descargar imagen si está habilitado y no existe
+            if download_images and not producto.foto:
+                if self.download_and_save_image(producto, url):
+                    imagenes_descargadas += 1
+            
             # Usar fecha de última actualización del JSON
             ultima_actualizacion = datetime.fromisoformat(
                 proyecto_data['ultima_actualizacion'].replace('Z', '+00:00')
@@ -248,7 +348,7 @@ class Command(BaseCommand):
                 producto=producto
             )
         
-        return productos_creados
+        return productos_creados, imagenes_descargadas
     
     def show_summary(self):
         """Mostrar resumen de datos cargados"""
@@ -257,12 +357,13 @@ class Command(BaseCommand):
         
         for tipo in TipoProducto.objects.all():
             count = tipo.producto_set.count()
-            self.stdout.write(f'  - {tipo.nombre}: {count} productos')
+            con_imagen = tipo.producto_set.exclude(foto='').exclude(foto__isnull=True).count()
+            self.stdout.write(f'  - {tipo.nombre}: {count} productos ({con_imagen} con imagen guardada)')
             
             # Mostrar variables únicas para WRF
             if tipo.nombre == 'wrf_cba':
                 variables = tipo.producto_set.values_list('variable', flat=True).distinct()
-                self.stdout.write(f'    Variables: {", ".join(sorted(variables))}')
+                self.stdout.write(f'    Variables: {len(variables)} ({", ".join(sorted(variables))})')
         
         # Mostrar fechas disponibles
         fechas_unicas = FechaProducto.objects.values_list('fecha', flat=True).distinct().order_by('-fecha')[:10]
@@ -274,6 +375,9 @@ class Command(BaseCommand):
         # Total de productos y fechas
         total_productos = Producto.objects.count()
         total_fechas = FechaProducto.objects.count()
+        total_con_imagen = Producto.objects.exclude(foto='').exclude(foto__isnull=True).count()
+        
         self.stdout.write(f'\n📈 TOTALES:')
         self.stdout.write(f'  - Productos: {total_productos}')
         self.stdout.write(f'  - Registros de fechas: {total_fechas}')
+        self.stdout.write(f'  - Imágenes guardadas: {total_con_imagen}/{total_productos}')
