@@ -14,7 +14,7 @@ import {
   Snowflake,
 } from "lucide-react"
 import DatePicker from "react-datepicker"
-import { format, subDays } from "date-fns"
+import { format, subDays, addDays } from "date-fns"
 import { es } from "date-fns/locale"
 import { fetchProductos } from "../services/api"
 import ZoomableImage from "./ZoomableImage"
@@ -26,6 +26,7 @@ const WRFSection = ({ loading: initialLoading }) => {
   const [selectedTime, setSelectedTime] = useState("12:00")
   const [selectedVariable, setSelectedVariable] = useState("t2")
   const [productos, setProductos] = useState([])
+  const [allProductos, setAllProductos] = useState([]) // Productos de múltiples días
   const [availableHours, setAvailableHours] = useState([])
   const [loading, setLoading] = useState(initialLoading)
   const [currentImage, setCurrentImage] = useState(null)
@@ -178,29 +179,61 @@ const WRFSection = ({ loading: initialLoading }) => {
     // Cuando cambian los productos, actualizar horas disponibles y buscar imagen
     updateAvailableHours()
     findImageForSelectedTime()
-  }, [productos, selectedTime, selectedDate])
+  }, [allProductos, selectedTime, selectedDate])
 
   const loadWRFData = async () => {
     try {
       setLoading(true)
       const dateStr = format(selectedDate, "yyyy-MM-dd")
 
+      // También cargar el día anterior y siguiente para capturar todas las horas
+      const prevDateStr = format(subDays(selectedDate, 1), "yyyy-MM-dd")
+      const nextDateStr = format(addDays(selectedDate, 1), "yyyy-MM-dd")
+
       console.log("Buscando productos WRF para:", {
-        fecha: dateStr,
+        fechas: [prevDateStr, dateStr, nextDateStr],
         variable: selectedVariable,
       })
 
-      const response = await fetchProductos({
-        tipo: "wrf_cba",
-        fecha: dateStr,
-        variable: selectedVariable,
+      // Cargar productos de 3 días para asegurar que tenemos todas las horas
+      const [currentResponse, prevResponse, nextResponse] = await Promise.all([
+        fetchProductos({
+          tipo: "wrf_cba",
+          fecha: dateStr,
+          variable: selectedVariable,
+        }),
+        fetchProductos({
+          tipo: "wrf_cba",
+          fecha: prevDateStr,
+          variable: selectedVariable,
+        }).catch(() => ({ results: [] })),
+        fetchProductos({
+          tipo: "wrf_cba",
+          fecha: nextDateStr,
+          variable: selectedVariable,
+        }).catch(() => ({ results: [] })),
+      ])
+
+      const currentProductos = currentResponse.results || currentResponse
+      const prevProductos = prevResponse.results || prevResponse
+      const nextProductos = nextResponse.results || nextResponse
+
+      // Combinar todos los productos
+      const todosLosProductos = [...prevProductos, ...currentProductos, ...nextProductos]
+
+      console.log("Productos encontrados:", {
+        anterior: prevProductos.length,
+        actual: currentProductos.length,
+        siguiente: nextProductos.length,
+        total: todosLosProductos.length,
       })
 
-      const productosData = response.results || response
-      console.log("Productos encontrados:", productosData.length)
-      setProductos(productosData)
+      setProductos(currentProductos) // Para mostrar estadísticas
+      setAllProductos(todosLosProductos) // Para calcular horas disponibles
 
-      setDebugInfo(`Productos: ${productosData.length} | Variable: ${selectedVariable}`)
+      setDebugInfo(
+        `Productos: ${currentProductos.length} (${todosLosProductos.length} total) | Variable: ${selectedVariable}`,
+      )
     } catch (error) {
       console.error("Error loading WRF data:", error)
       setDebugInfo(`Error: ${error.message}`)
@@ -209,8 +242,8 @@ const WRFSection = ({ loading: initialLoading }) => {
     }
   }
 
-  // Función para convertir offset de archivo a hora ARG
-  const offsetToArgTime = (offset, runHour, baseDate) => {
+  // Función para convertir offset de archivo a hora ARG y fecha
+  const offsetToArgDateTime = (offset, runHour, baseDate) => {
     // runHour es la hora de inicio de la corrida (06 o 18 UTC)
     // offset es el número después del + en el nombre del archivo
     // baseDate es la fecha base de la corrida
@@ -228,62 +261,46 @@ const WRFSection = ({ loading: initialLoading }) => {
       dayOffset = 1 // Día siguiente
     }
 
+    // Calcular la fecha real del pronóstico
+    const forecastDate = new Date(baseDate)
+    forecastDate.setDate(forecastDate.getDate() + dayOffset)
+
     return {
       time: `${argHour.toString().padStart(2, "0")}:00`,
-      dayOffset: dayOffset,
+      date: forecastDate,
+      dateStr: format(forecastDate, "yyyy-MM-dd"),
     }
-  }
-
-  // Función para convertir hora ARG a offset de archivo
-  const argTimeToOffset = (argTime, runHour) => {
-    const argHour = Number.parseInt(argTime.split(":")[0])
-    const runHourInt = Number.parseInt(runHour)
-
-    // Convertir hora ARG a UTC
-    const utcHour = argHour + 3 // Argentina es UTC-3
-
-    // Calcular offset desde la hora de corrida
-    let offset = utcHour - runHourInt
-
-    // Manejar cambios de día
-    if (offset < 0) {
-      offset += 24
-    }
-
-    return offset
   }
 
   const updateAvailableHours = () => {
-    if (productos.length === 0) {
+    if (allProductos.length === 0) {
       setAvailableHours([])
       return
     }
 
+    const selectedDateStr = format(selectedDate, "yyyy-MM-dd")
+
     // Extraer información de los nombres de archivos
-    const hoursInfo = productos
+    const hoursInfo = allProductos
       .map((p) => {
         // Buscar patrón de corrida y offset: YYYY-MM-DD_HH+HH
         const match = p.nombre_archivo.match(/(\d{4}-\d{2}-\d{2})_(\d{2})\+(\d{2})/)
         if (match) {
           const [, date, runHour, offset] = match
           const baseDate = new Date(date + "T00:00:00")
-          const timeInfo = offsetToArgTime(offset, runHour, baseDate)
+          const dateTimeInfo = offsetToArgDateTime(offset, runHour, baseDate)
 
-          // Calcular la fecha real del pronóstico
-          const forecastDate = new Date(baseDate)
-          forecastDate.setDate(forecastDate.getDate() + timeInfo.dayOffset)
+          console.log(`Archivo: ${p.nombre_archivo} -> Hora ARG: ${dateTimeInfo.time}, Fecha: ${dateTimeInfo.dateStr}`)
 
           // Solo incluir si la fecha del pronóstico coincide con la fecha seleccionada
-          const selectedDateStr = format(selectedDate, "yyyy-MM-dd")
-          const forecastDateStr = format(forecastDate, "yyyy-MM-dd")
-
-          if (selectedDateStr === forecastDateStr) {
+          if (selectedDateStr === dateTimeInfo.dateStr) {
             return {
-              argTime: timeInfo.time,
+              argTime: dateTimeInfo.time,
               offset: Number.parseInt(offset),
               runHour: Number.parseInt(runHour),
               filename: p.nombre_archivo,
-              forecastDate: forecastDate,
+              forecastDate: dateTimeInfo.date,
+              producto: p,
             }
           }
         }
@@ -301,7 +318,7 @@ const WRFSection = ({ loading: initialLoading }) => {
     setAvailableHours(uniqueHours)
 
     console.log("Horas disponibles (ARG) para fecha seleccionada:", uniqueHours)
-    console.log("Información de archivos filtrada:", hoursInfo)
+    console.log("Información de archivos filtrada:", hoursInfo.length)
 
     // Si la hora seleccionada no está disponible, seleccionar la primera disponible
     if (uniqueHours.length > 0 && !uniqueHours.includes(selectedTime)) {
@@ -310,37 +327,29 @@ const WRFSection = ({ loading: initialLoading }) => {
   }
 
   const findImageForSelectedTime = () => {
-    if (productos.length === 0) {
+    if (allProductos.length === 0) {
       setCurrentImage(null)
       return
     }
 
-    console.log("Buscando imagen para hora ARG:", selectedTime, "fecha:", format(selectedDate, "yyyy-MM-dd"))
+    const selectedDateStr = format(selectedDate, "yyyy-MM-dd")
+    console.log("Buscando imagen para hora ARG:", selectedTime, "fecha:", selectedDateStr)
 
     // Buscar el producto que corresponde a la hora ARG seleccionada en la fecha correcta
-    const matchingProduct = productos.find((p) => {
+    const matchingProduct = allProductos.find((p) => {
       // Extraer información del nombre del archivo
       const match = p.nombre_archivo.match(/(\d{4}-\d{2}-\d{2})_(\d{2})\+(\d{2})/)
       if (match) {
         const [, date, runHour, offset] = match
         const baseDate = new Date(date + "T00:00:00")
-        const timeInfo = offsetToArgTime(offset, runHour, baseDate)
+        const dateTimeInfo = offsetToArgDateTime(offset, runHour, baseDate)
 
-        // Calcular la fecha real del pronóstico
-        const forecastDate = new Date(baseDate)
-        forecastDate.setDate(forecastDate.getDate() + timeInfo.dayOffset)
-
-        const selectedDateStr = format(selectedDate, "yyyy-MM-dd")
-        const forecastDateStr = format(forecastDate, "yyyy-MM-dd")
-
-        console.log(`Archivo: ${p.nombre_archivo} -> Hora ARG: ${timeInfo.time}, Fecha: ${forecastDateStr}`)
-
-        return timeInfo.time === selectedTime && selectedDateStr === forecastDateStr
+        return dateTimeInfo.time === selectedTime && selectedDateStr === dateTimeInfo.dateStr
       }
       return false
     })
 
-    console.log("Producto encontrado:", matchingProduct)
+    console.log("Producto encontrado:", matchingProduct?.nombre_archivo)
 
     if (matchingProduct) {
       // Usar imagen_url (imagen guardada) o url_imagen (externa) como fallback
