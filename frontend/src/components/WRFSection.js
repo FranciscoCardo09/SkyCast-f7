@@ -178,7 +178,7 @@ const WRFSection = ({ loading: initialLoading }) => {
     // Cuando cambian los productos, actualizar horas disponibles y buscar imagen
     updateAvailableHours()
     findImageForSelectedTime()
-  }, [productos, selectedTime])
+  }, [productos, selectedTime, selectedDate])
 
   const loadWRFData = async () => {
     try {
@@ -210,22 +210,28 @@ const WRFSection = ({ loading: initialLoading }) => {
   }
 
   // Función para convertir offset de archivo a hora ARG
-  const offsetToArgTime = (offset, runHour) => {
+  const offsetToArgTime = (offset, runHour, baseDate) => {
     // runHour es la hora de inicio de la corrida (06 o 18 UTC)
     // offset es el número después del + en el nombre del archivo
-    // Necesitamos convertir a hora ARG (UTC-3)
+    // baseDate es la fecha base de la corrida
 
     const utcHour = Number.parseInt(runHour) + Number.parseInt(offset)
     let argHour = utcHour - 3 // Argentina es UTC-3
+    let dayOffset = 0
 
     // Manejar el cambio de día
     if (argHour < 0) {
       argHour += 24
+      dayOffset = -1 // Día anterior
     } else if (argHour >= 24) {
       argHour -= 24
+      dayOffset = 1 // Día siguiente
     }
 
-    return `${argHour.toString().padStart(2, "0")}:00`
+    return {
+      time: `${argHour.toString().padStart(2, "0")}:00`,
+      dayOffset: dayOffset,
+    }
   }
 
   // Función para convertir hora ARG a offset de archivo
@@ -260,12 +266,25 @@ const WRFSection = ({ loading: initialLoading }) => {
         const match = p.nombre_archivo.match(/(\d{4}-\d{2}-\d{2})_(\d{2})\+(\d{2})/)
         if (match) {
           const [, date, runHour, offset] = match
-          const argTime = offsetToArgTime(offset, runHour)
-          return {
-            argTime,
-            offset: Number.parseInt(offset),
-            runHour: Number.parseInt(runHour),
-            filename: p.nombre_archivo,
+          const baseDate = new Date(date + "T00:00:00")
+          const timeInfo = offsetToArgTime(offset, runHour, baseDate)
+
+          // Calcular la fecha real del pronóstico
+          const forecastDate = new Date(baseDate)
+          forecastDate.setDate(forecastDate.getDate() + timeInfo.dayOffset)
+
+          // Solo incluir si la fecha del pronóstico coincide con la fecha seleccionada
+          const selectedDateStr = format(selectedDate, "yyyy-MM-dd")
+          const forecastDateStr = format(forecastDate, "yyyy-MM-dd")
+
+          if (selectedDateStr === forecastDateStr) {
+            return {
+              argTime: timeInfo.time,
+              offset: Number.parseInt(offset),
+              runHour: Number.parseInt(runHour),
+              filename: p.nombre_archivo,
+              forecastDate: forecastDate,
+            }
           }
         }
         return null
@@ -281,8 +300,8 @@ const WRFSection = ({ loading: initialLoading }) => {
 
     setAvailableHours(uniqueHours)
 
-    console.log("Horas disponibles (ARG):", uniqueHours)
-    console.log("Información de archivos:", hoursInfo)
+    console.log("Horas disponibles (ARG) para fecha seleccionada:", uniqueHours)
+    console.log("Información de archivos filtrada:", hoursInfo)
 
     // Si la hora seleccionada no está disponible, seleccionar la primera disponible
     if (uniqueHours.length > 0 && !uniqueHours.includes(selectedTime)) {
@@ -296,19 +315,27 @@ const WRFSection = ({ loading: initialLoading }) => {
       return
     }
 
-    console.log("Buscando imagen para hora ARG:", selectedTime)
+    console.log("Buscando imagen para hora ARG:", selectedTime, "fecha:", format(selectedDate, "yyyy-MM-dd"))
 
-    // Buscar el producto que corresponde a la hora ARG seleccionada
+    // Buscar el producto que corresponde a la hora ARG seleccionada en la fecha correcta
     const matchingProduct = productos.find((p) => {
       // Extraer información del nombre del archivo
       const match = p.nombre_archivo.match(/(\d{4}-\d{2}-\d{2})_(\d{2})\+(\d{2})/)
       if (match) {
         const [, date, runHour, offset] = match
-        const argTime = offsetToArgTime(offset, runHour)
+        const baseDate = new Date(date + "T00:00:00")
+        const timeInfo = offsetToArgTime(offset, runHour, baseDate)
 
-        console.log(`Archivo: ${p.nombre_archivo} -> Hora ARG: ${argTime}`)
+        // Calcular la fecha real del pronóstico
+        const forecastDate = new Date(baseDate)
+        forecastDate.setDate(forecastDate.getDate() + timeInfo.dayOffset)
 
-        return argTime === selectedTime
+        const selectedDateStr = format(selectedDate, "yyyy-MM-dd")
+        const forecastDateStr = format(forecastDate, "yyyy-MM-dd")
+
+        console.log(`Archivo: ${p.nombre_archivo} -> Hora ARG: ${timeInfo.time}, Fecha: ${forecastDateStr}`)
+
+        return timeInfo.time === selectedTime && selectedDateStr === forecastDateStr
       }
       return false
     })

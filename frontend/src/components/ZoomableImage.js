@@ -69,6 +69,31 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
     setScale((prev) => Math.min(Math.max(prev * delta, 0.5), 5))
   }
 
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 1 && scale > 1) {
+      setIsDragging(true)
+      setDragStart({
+        x: e.touches[0].clientX - position.x,
+        y: e.touches[0].clientY - position.y,
+      })
+      e.preventDefault()
+    }
+  }
+
+  const handleTouchMove = (e) => {
+    if (isDragging && e.touches.length === 1 && scale > 1) {
+      setPosition({
+        x: e.touches[0].clientX - dragStart.x,
+        y: e.touches[0].clientY - dragStart.y,
+      })
+      e.preventDefault()
+    }
+  }
+
+  const handleTouchEnd = () => {
+    setIsDragging(false)
+  }
+
   // Manejar eventos del mouse
   useEffect(() => {
     if (isModalOpen) {
@@ -103,17 +128,23 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
       {/* Imagen principal */}
       <div className={`relative group cursor-pointer ${className}`}>
         <img
-          src={src || "/placeholder.svg"}
+          src={src || "/placeholder.svg?height=400&width=600"}
           alt={alt}
           className="w-full h-auto rounded-lg transition-transform duration-200 hover:scale-[1.02]"
           onClick={openModal}
           onError={(e) => {
+            console.error("Error cargando imagen:", src)
             e.target.style.display = "none"
-            e.target.nextSibling.style.display = "flex"
+            if (e.target.nextSibling) {
+              e.target.nextSibling.style.display = "flex"
+            }
           }}
         />
-        <div className="hidden items-center justify-center h-64 bg-gray-100 rounded-lg">
-          <p className="text-gray-500">Imagen no disponible</p>
+        <div className="hidden items-center justify-center h-64 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+          <div className="text-center">
+            <p className="text-gray-500 mb-2">Imagen no disponible</p>
+            <p className="text-xs text-gray-400">URL: {src}</p>
+          </div>
         </div>
 
         {/* Overlay de zoom */}
@@ -179,6 +210,9 @@ const ZoomableImage = ({ src, alt, className = "" }) => {
                 }}
                 onMouseDown={handleMouseDown}
                 onWheel={handleWheel}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
                 onLoad={() => setImageLoaded(true)}
                 draggable={false}
               />
