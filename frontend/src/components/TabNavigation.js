@@ -53,7 +53,7 @@ const TabNavigation = ({ activeTab, onTabChange, estadisticas }) => {
               <Icon className="h-5 w-5" />
               <div className="text-left">
                 <div className="font-semibold">{tab.label}</div>
-                <div className="text-xs opacity-75">{tab.count} productos</div>
+                <div className="text-xs opacity-75">{tab.description}</div>
               </div>
             </button>
           )
